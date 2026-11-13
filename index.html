@@ -4,17 +4,20 @@
 <meta charset="utf-8">
 <meta name="robots" content="noindex">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b120d">
 <title>Zombie Horde Free Spins – Horde Games demo</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<div id="sky"><div class="moon"></div><div class="city"></div><div class="fog f1"></div><div class="fog f2"></div></div>
+<div id="flash"></div>
 <div id="app">
   <header>
     <div class="brand">HORDE GAMES <span>demo</span></div>
     <div class="demo-badge">DEMO – no real money</div>
     <div class="hdr-btns">
-      <button id="btnSound" class="icon-btn" title="Sound">🔊</button>
-      <button id="btnInfo" class="icon-btn" title="Paytable &amp; rules">ℹ️</button>
+      <button id="btnSound" class="icon-btn" title="Sound" aria-label="Sound">♪</button>
+      <button id="btnInfo" class="icon-btn" title="Paytable &amp; rules" aria-label="Paytable">i</button>
     </div>
   </header>
 
@@ -23,25 +26,30 @@
   <div id="fsBar" class="fs-bar hidden">
     <div class="fs-stat"><label>SPINS LEFT</label><b id="fsLeft">10</b></div>
     <div class="meter-wrap">
-      <label>HORDE METER <span id="meterTxt">0/58</span></label>
-      <div class="meter"><div id="meterFill"></div><div class="meter-marks"></div></div>
+      <label>HORDE METER <span id="meterTxt">0/45</span></label>
+      <div class="meter" id="meter"><div id="meterFill"></div><img class="meter-head" src="assets/sym/SHAMBLER.svg" alt=""></div>
+      <div class="mult-steps"><span data-l="1">×2</span><span data-l="2">×5</span><span data-l="3">×10</span></div>
     </div>
     <div class="fs-stat mult"><label>MULTIPLIER</label><b id="fsMult">×1</b></div>
   </div>
 
-  <div id="stage">
-    <div id="grid"></div>
+  <div id="frame">
+    <div class="rivet r1"></div><div class="rivet r2"></div><div class="rivet r3"></div><div class="rivet r4"></div>
+    <div id="stage">
+      <div id="grid"></div>
+      <div id="fx"></div>
+      <div id="toast" class="toast hidden"></div>
+    </div>
     <div id="winBanner" class="win-banner hidden"></div>
-    <div id="toast" class="toast hidden"></div>
   </div>
 
-  <div class="msg-row"><div id="msg">Land 8+ matching symbols anywhere to win. 4+ 🧠 = FREE SPINS</div></div>
+  <div class="msg-row"><div id="msg">8+ matching symbols anywhere win · wins tumble · 4+ brains = FREE SPINS</div></div>
 
   <footer>
     <div class="panel"><label>BALANCE</label><b id="balance">1,000.00</b></div>
     <div class="panel bet">
       <label>BET</label>
-      <div class="bet-ctl"><button id="betDown">−</button><b id="bet">1.00</b><button id="betUp">+</button></div>
+      <div class="bet-ctl"><button id="betDown" aria-label="Lower bet">−</button><b id="bet">1.00</b><button id="betUp" aria-label="Raise bet">+</button></div>
     </div>
     <div class="panel"><label>WIN</label><b id="win">0.00</b></div>
     <div class="controls">
@@ -56,11 +64,18 @@
 <!-- Overlays -->
 <div id="ovIntro" class="overlay hidden">
   <div class="ov-card">
-    <div class="ov-icon">🧠🧠🧠🧠</div>
+    <div class="ov-icons"><img src="assets/sym/BRAIN.svg" alt=""><img src="assets/sym/BRAIN.svg" alt=""><img src="assets/sym/BRAIN.svg" alt=""><img src="assets/sym/BRAIN.svg" alt=""></div>
     <h2>THE HORDE IS COMING</h2>
     <div class="ov-big"><span id="introSpins">10</span> FREE SPINS</div>
-    <p>Every zombie that lands feeds the <b>HORDE METER</b>.<br>Fill it for <b>+5 spins</b> and a bigger multiplier:<br><b class="m">×2 → ×5 → ×10</b> (it never resets!)</p>
+    <p>Every zombie that lands – cascades too – flies into the <b>HORDE METER</b>.<br>Fill it for <b>+5 spins</b> and a bigger multiplier:<br><b class="m">×2 → ×5 → ×10</b> (it never resets!)<br>On the last spin the <b>BOSS</b> drops a prize or an extra multiplier.</p>
     <button class="go-btn" id="introGo">START</button>
+  </div>
+</div>
+<div id="ovBoss" class="overlay hidden">
+  <div class="boss-scene">
+    <img id="bossImg" src="assets/boss_big.svg" alt="Boss zombie">
+    <div id="bossTitle">THE BOSS ARRIVES…</div>
+    <div id="bossDrop" class="boss-drop hidden"><div id="bossDropTxt"></div><div id="bossDropAmt"></div></div>
   </div>
 </div>
 <div id="ovOutro" class="overlay hidden">
@@ -77,19 +92,21 @@
     <div id="bigAmt">0.00</div>
   </div>
 </div>
+<div id="unleash" class="unleash hidden"><div class="u1">HORDE<br>UNLEASHED!</div><div class="u2" id="unleashTxt">×2 · +5 SPINS</div></div>
 <div id="ovInfo" class="overlay hidden">
   <div class="ov-card info">
-    <button class="close" id="infoClose">✕</button>
+    <button class="close" id="infoClose" aria-label="Close">✕</button>
     <h2>PAYTABLE</h2>
-    <p class="small">Pays shown for the current bet. Pays anywhere: 8+ of the same symbol anywhere on the 6×4 grid.</p>
+    <p class="small">Pays for the current bet. 8+ of the same symbol anywhere on the 6×4 grid.</p>
     <table id="payTable"></table>
     <h3>RULES</h3>
     <ul class="rules">
-      <li><b>Pays anywhere:</b> 8 or more of a symbol anywhere on the grid win. Bands: 8–9, 10–11, 12+.</li>
-      <li><b>☣️ WILD</b> counts as every paying symbol (needs at least one real symbol to pay).</li>
-      <li>All wins on a spin are added together.</li>
-      <li><b>🧠 BRAIN scatter:</b> 4+ anywhere pays and awards <b>10 FREE SPINS</b>. 3+ during free spins = +5 spins.</li>
-      <li><b>Horde meter:</b> during free spins every zombie symbol (🧟 🧟‍♀️ 👹 💀) adds 1. Fill it for +5 spins and the multiplier steps ×1 → ×2 → ×5 → ×10. It persists to the end of the feature.</li>
+      <li><b>Pays anywhere:</b> 8 or more of a symbol anywhere win. Bands: 8–9, 10–11, 12+.</li>
+      <li><b>Cascades:</b> winning symbols explode, the rest drop and new ones fall in. Repeats while there are wins; all cascade wins add up.</li>
+      <li><b>WILD</b> counts as every paying symbol (needs at least one real symbol to pay) and explodes when used.</li>
+      <li><b>BRAIN scatter</b> never explodes. 4+ on the grid after cascades pay and award <b>10 FREE SPINS</b>. 3+ during free spins = +5 spins.</li>
+      <li><b>Horde meter:</b> in free spins every zombie that lands (cascades too) adds 1. Fill it (<span id="meterRule"></span>) for +5 spins and a multiplier step ×1 → ×2 → ×5 → ×10 that lasts to the end of the feature and applies to every cascade win.</li>
+      <li><b>Boss drop:</b> after the last free spin the boss drops an extra ×2 / ×3 / ×5 on the whole feature win, or a boss prize of 5× – 100× bet (always a prize if the feature won under <span id="bossMin"></span>× bet).</li>
       <li>Max win per round: <span id="maxWin"></span>× bet.</li>
       <li>Simulated RTP ≈ 96% · hit rate ≈ 1 in 3.5 · free spins ≈ 1 in 225 (see simulate.js).</li>
       <li>Space = spin. Add <code>?seed=123</code> to the URL for a repeatable session.</li>
