@@ -26,25 +26,26 @@
     bets: [0.2, 0.5, 1, 2, 5, 10, 20],
     defaultBetIndex: 2,
     maxWinX: 5000,
+    bigWinX: 25,                                 // presentation only: big-win screen from 25x bet
     symbols: {
       // pays by count band [8-9, 10-11, 12+] in x total bet
-      AXE:      { name: 'Axe',      kind: 'low',    pay: [0.7, 2, 8] },
-      RADIO:    { name: 'Radio',    kind: 'low',    pay: [1.1, 3, 15] },
-      MEDKIT:   { name: 'Medkit',   kind: 'low',    pay: [1.5, 4, 20] },
-      TNT:      { name: 'Dynamite', kind: 'low',    pay: [2.2, 5, 30] },
-      SHAMBLER: { name: 'Shambler', kind: 'zombie', pay: [5, 12, 40] },
-      RUNNER:   { name: 'Runner',   kind: 'zombie', pay: [8, 25, 80] },
-      HULK:     { name: 'Hulk',     kind: 'zombie', pay: [12, 50, 150] },
-      BOSS:     { name: 'Boss',     kind: 'zombie', pay: [50, 150, 500] },
+      AXE:      { name: 'Axe',      kind: 'low',    pay: [0.2, 1.6, 7] },
+      RADIO:    { name: 'Radio',    kind: 'low',    pay: [0.3, 3, 10] },
+      MEDKIT:   { name: 'Medkit',   kind: 'low',    pay: [0.4, 3, 20] },
+      TNT:      { name: 'Dynamite', kind: 'low',    pay: [0.5, 6, 30] },
+      SHAMBLER: { name: 'Shambler', kind: 'zombie', pay: [9, 24, 70] },
+      RUNNER:   { name: 'Runner',   kind: 'zombie', pay: [14, 45, 140] },
+      HULK:     { name: 'Hulk',     kind: 'zombie', pay: [24, 90, 300] },
+      BOSS:     { name: 'Boss',     kind: 'zombie', pay: [70, 250, 1000] },
       WILD:     { name: 'Wild',     kind: 'wild' },
       BRAIN:    { name: 'Brain',    kind: 'scatter' },
     },
     scatterPay: { 4: 3, 5: 5, 6: 100 },          // x bet by brains on final grid (6 = 6+)
-    weightsBase: { AXE: 220, RADIO: 200, MEDKIT: 180, TNT: 160, SHAMBLER: 100, RUNNER: 75, HULK: 50, BOSS: 30, WILD: 7, BRAIN: 26 },
-    weightsFree: { AXE: 170, RADIO: 150, MEDKIT: 130, TNT: 110, SHAMBLER: 120, RUNNER: 90, HULK: 60, BOSS: 32, WILD: 20, BRAIN: 20 },
+    weightsBase: { AXE: 250, RADIO: 210, MEDKIT: 170, TNT: 140, SHAMBLER: 90, RUNNER: 65, HULK: 45, BOSS: 25, WILD: 8, BRAIN: 24 },
+    weightsFree: { AXE: 150, RADIO: 130, MEDKIT: 110, TNT: 90, SHAMBLER: 140, RUNNER: 105, HULK: 70, BOSS: 38, WILD: 22, BRAIN: 20 },
     freeSpins: {
       trigger: 4, award: 10, retriggerBrains: 3, retriggerAward: 5,
-      meterSizes: [45, 70, 120],                  // zombies needed for x2, x5, x10
+      meterSizes: [55, 110, 130],                  // zombies needed for x2, x5, x10
       meterAward: 5, multipliers: [1, 2, 5, 10],
     },
     bossDrop: {

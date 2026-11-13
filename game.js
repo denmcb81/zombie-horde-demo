@@ -18,40 +18,120 @@
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const T = ms => (state.turbo ? Math.round(ms * 0.45) : ms);
 
-  // ---------- sound (tiny WebAudio synth) ----------
-  let ac = null;
-  function tone(freq, dur, type = 'square', vol = 0.05, slide = 0, delay = 0) {
-    if (!state.sound) return;
-    try {
-      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
-      const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + delay;
-      o.type = type; o.frequency.setValueAtTime(freq, t);
-      if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur);
-      g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur + 0.02);
-    } catch (e) { /* audio unavailable */ }
+  // ---------- audio: ElevenLabs-generated files (assets/audio) + tiny synth ticks ----------
+  // Nothing plays until the first tap/key (browser autoplay rules). Music / SFX toggles are remembered.
+  const PREF = (() => { try { return JSON.parse(localStorage.getItem('zhAudio') || '{}'); } catch (e) { return {}; } })();
+  state.music = PREF.music !== false; state.sound = PREF.sfx !== false;
+  const savePref = () => { try { localStorage.setItem('zhAudio', JSON.stringify({ music: state.music, sfx: state.sound })); } catch (e) { /* private mode */ } };
+  const AUDIO_FILES = ['music_base', 'music_free', 'heartbeat', 'reel_stop', 'groan_small', 'groan_big', 'cascade_boom', 'meter_thunk', 'boss_roar', 'bigwin_fanfare', 'brain_land'];
+  const A = { ctx: null, buf: {}, el: {}, loaded: 0, failed: 0, mode: 'none', music: null, musicKey: 'music_base', master: null, mGain: null, sGain: null, hb: null, lastThunk: 0 };
+  const audioSrc = k => `assets/audio/${k}.mp3`;
+  function markAudio() { document.body.dataset.audio = `${A.mode}:${A.loaded}/${AUDIO_FILES.length}${A.failed ? ' failed:' + A.failed : ''}`; }
+  function unlockAudio() {
+    if (A.ctx || A.mode === 'html') return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const viaHtml = () => { // fallback (e.g. opened from file:// where fetch is blocked)
+      A.mode = 'html';
+      AUDIO_FILES.forEach(k => { if (A.buf[k]) return; const e = new Audio(audioSrc(k)); e.preload = 'auto'; A.el[k] = e;
+        e.addEventListener('canplaythrough', () => { if (!e._ok) { e._ok = 1; A.loaded++; markAudio(); if (k === A.musicKey) startMusic(k); } }, { once: true });
+        e.addEventListener('error', () => { A.failed++; markAudio(); }, { once: true }); e.load(); });
+    };
+    if (!AC) return viaHtml();
+    A.ctx = new AC(); A.mode = 'webaudio';
+    A.master = A.ctx.createGain(); A.master.connect(A.ctx.destination);
+    A.mGain = A.ctx.createGain(); A.mGain.gain.value = 0; A.mGain.connect(A.master);
+    A.sGain = A.ctx.createGain(); A.sGain.gain.value = 0.9; A.sGain.connect(A.master);
+    if (A.ctx.state === 'suspended') A.ctx.resume();
+    if (location.protocol === 'file:') return viaHtml();   // fetch() is blocked on file:// – use <audio> elements
+    let fellBack = false;
+    AUDIO_FILES.forEach(k => fetch(audioSrc(k)).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+      .then(ab => new Promise((res, rej) => A.ctx.decodeAudioData(ab, res, rej)))
+      .then(bf => { A.buf[k] = bf; A.loaded++; markAudio(); if (k === A.musicKey) startMusic(k); })
+      .catch(() => { if (!fellBack) { fellBack = true; A.loaded = 0; A.buf = {}; viaHtml(); } }));
+    markAudio();
   }
-  function noise(dur, vol = 0.08) {
+  ['pointerdown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, unlockAudio, { passive: true }));
+  document.addEventListener('visibilitychange', () => { if (A.ctx) (document.hidden ? A.ctx.suspend() : A.ctx.resume()); if (A.mode === 'html' && A.music) (document.hidden ? A.music.pause() : state.music && A.music.play().catch(() => {})); });
+
+  function snd(k, o = {}) {
     if (!state.sound) return;
-    try {
-      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
-      const n = Math.floor(ac.sampleRate * dur), buf = ac.createBuffer(1, n, ac.sampleRate), d = buf.getChannelData(0);
-      for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 2);
-      const s = ac.createBufferSource(), g = ac.createGain(); g.gain.value = vol;
-      s.buffer = buf; s.connect(g).connect(ac.destination); s.start();
-    } catch (e) { /* audio unavailable */ }
+    const vol = o.vol == null ? 1 : o.vol, rate = o.rate || 1;
+    if (A.buf[k]) {
+      const s = A.ctx.createBufferSource(), g = A.ctx.createGain();
+      s.buffer = A.buf[k]; s.playbackRate.value = rate; g.gain.value = vol;
+      s.connect(g).connect(A.sGain); s.start(A.ctx.currentTime + (o.delay || 0));
+      return s;
+    }
+    if (A.el[k]) { const e = A.el[k].cloneNode(); e.volume = Math.min(1, vol * 0.9); e.playbackRate = rate; e.play().catch(() => {}); return e; }
   }
+  const MUSIC_VOL = 0.42;
+  function startMusic(k) {
+    A.musicKey = k;
+    if (!state.music) return;
+    if (A.mode === 'webaudio') {
+      if (!A.buf[k]) return;
+      if (A.music && A.music._k === k) return;
+      const t = A.ctx.currentTime;
+      if (A.music) { const old = A.music; old._g.gain.cancelScheduledValues(t); old._g.gain.setValueAtTime(old._g.gain.value, t); old._g.gain.linearRampToValueAtTime(0, t + 0.8); old.stop(t + 0.85); }
+      const s = A.ctx.createBufferSource(), g = A.ctx.createGain();
+      s.buffer = A.buf[k]; s.loop = true; s.loopStart = 0.03; s.loopEnd = A.buf[k].duration - 0.03;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + 0.8);
+      s.connect(g).connect(A.mGain); s.start(t, 0.03); s._k = k; s._g = g; A.music = s;
+      A.mGain.gain.cancelScheduledValues(t); A.mGain.gain.setValueAtTime(A.mGain.gain.value, t); A.mGain.gain.linearRampToValueAtTime(MUSIC_VOL, t + 0.8);
+    } else if (A.mode === 'html') {
+      const e = A.el[k]; if (!e) return;
+      if (A.music && A.music !== e) A.music.pause();
+      e.loop = true; e.volume = MUSIC_VOL; A.music = e; e.play().catch(() => {});
+    }
+  }
+  function stopMusic() {
+    if (!A.music) return;
+    if (A.mode === 'webaudio') { const t = A.ctx.currentTime, m = A.music; m._g.gain.setValueAtTime(m._g.gain.value, t); m._g.gain.linearRampToValueAtTime(0, t + 0.4); m.stop(t + 0.45); }
+    else A.music.pause();
+    A.music = null;
+  }
+  function duck(on) {
+    if (A.mode === 'webaudio' && A.mGain) { const t = A.ctx.currentTime; A.mGain.gain.cancelScheduledValues(t); A.mGain.gain.setValueAtTime(A.mGain.gain.value, t); A.mGain.gain.linearRampToValueAtTime(on ? 0.1 : MUSIC_VOL, t + 0.3); }
+    else if (A.music) A.music.volume = on ? 0.1 : MUSIC_VOL;
+  }
+  // heartbeat speeds up while the last reels spin with 3 brains landed
+  function heartbeat(ms) {
+    if (!state.sound || A.hb) return;
+    if (A.buf.heartbeat) {
+      const s = A.ctx.createBufferSource(), g = A.ctx.createGain(), t = A.ctx.currentTime;
+      s.buffer = A.buf.heartbeat; s.loop = true; s.loopStart = 0.02; s.loopEnd = A.buf.heartbeat.duration - 0.02;
+      s.playbackRate.setValueAtTime(1, t); s.playbackRate.linearRampToValueAtTime(1.9, t + ms / 1000);
+      g.gain.setValueAtTime(0.3, t); g.gain.linearRampToValueAtTime(1, t + ms / 1000);
+      s.connect(g).connect(A.sGain); s.start(t); s._g = g; A.hb = s; duck(true);
+    } else if (A.el.heartbeat) { const e = A.el.heartbeat; e.loop = true; e.playbackRate = 1.3; e.currentTime = 0; e.play().catch(() => {}); A.hb = e; }
+  }
+  function heartbeatStop() {
+    if (!A.hb) return;
+    if (A.hb.stop) { const t = A.ctx.currentTime; A.hb._g.gain.setValueAtTime(A.hb._g.gain.value, t); A.hb._g.gain.linearRampToValueAtTime(0, t + 0.25); A.hb.stop(t + 0.3); duck(false); }
+    else A.hb.pause();
+    A.hb = null;
+  }
+  function tone(freq, dur, type = 'square', vol = 0.05, slide = 0) {
+    if (!state.sound || !A.ctx) return;
+    const o = A.ctx.createOscillator(), g = A.ctx.createGain(), t = A.ctx.currentTime;
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(A.sGain); o.start(t); o.stop(t + dur + 0.02);
+  }
+  const rnd = (a, b) => a + Math.random() * (b - a);
   const sfx = {
-    stop: () => tone(110, 0.08, 'triangle', 0.08, -40),
-    brain: () => tone(520, 0.15, 'sine', 0.08, 300),
-    win: n => [523, 659, 784].forEach((f, i) => tone(f * Math.pow(1.06, n || 0), 0.18, 'square', 0.04, 0, i * 0.07)),
-    boom: () => { noise(0.35, 0.12); tone(90, 0.3, 'sawtooth', 0.05, -50); },
-    drop: () => tone(240, 0.06, 'triangle', 0.04, -120),
-    tick: () => tone(1200, 0.03, 'square', 0.015),
-    gulp: () => tone(300 + Math.random() * 200, 0.06, 'square', 0.02, -150),
-    groan: () => tone(140, 0.7, 'sawtooth', 0.06, -70),
-    level: () => [392, 523, 659, 1046].forEach((f, i) => tone(f, 0.25, 'square', 0.05, 0, i * 0.09)),
-    roar: () => { noise(0.9, 0.15); tone(80, 0.9, 'sawtooth', 0.09, -40); },
+    stop: () => snd('reel_stop', { vol: 0.55, rate: rnd(0.95, 1.08) }),
+    brain: () => snd('brain_land', { vol: 0.9, rate: rnd(0.97, 1.05) }),
+    tick: () => tone(1500, 0.025, 'square', 0.012),
+    groan: x => { if (x >= 10) snd('groan_big', { vol: Math.min(1, 0.6 + x / 100) }); else snd('groan_small', { vol: x >= 2 ? 0.95 : 0.55, rate: x >= 2 ? rnd(0.82, 0.9) : rnd(1, 1.2) }); },
+    boom: () => snd('cascade_boom', { vol: 0.8, rate: rnd(0.9, 1.08) }),
+    drop: () => snd('reel_stop', { vol: 0.25, rate: 1.35 }),
+    thunk: () => { const n = performance.now(); if (n - A.lastThunk < 55) return; A.lastThunk = n; snd('meter_thunk', { vol: 0.7, rate: rnd(0.9, 1.25) }); },
+    intro: () => snd('groan_big', { vol: 1, rate: 0.9 }),
+    unleash: () => { snd('groan_big', { vol: 1, rate: 0.8 }); snd('cascade_boom', { vol: 1, rate: 0.6 }); },
+    roar: () => { snd('boss_roar', { vol: 1 }); snd('cascade_boom', { vol: 0.8, rate: 0.5, delay: 0.1 }); },
+    fanfare: (v = 1) => snd('bigwin_fanfare', { vol: v }),
   };
 
   // ---------- layout ----------
@@ -121,7 +201,7 @@
       const dur = (fast ? 260 + r * 70 : 560 + r * 160) + extra;
       R.strip.style.transition = `transform ${dur}ms cubic-bezier(.35,.05,.3,1.06)`;
       R.strip.style.transform = 'translateY(0)';
-      if (anticip) setTimeout(() => R.reel.classList.add('anticip'), Math.max(0, dur - (fast ? 350 : 900)));
+      if (anticip) setTimeout(() => { R.reel.classList.add('anticip'); heartbeat(fast ? 350 : 900 * (C.reels - r)); }, Math.max(0, dur - (fast ? 350 : 900)));
       promises.push(new Promise(res => setTimeout(() => {
         R.reel.classList.remove('anticip');
         renderReel(r, grid[r]);
@@ -131,7 +211,7 @@
       }, dur + 30)));
       brainsSoFar += grid[r].filter(s => s === 'BRAIN').length;
     }
-    return Promise.all(promises);
+    return Promise.all(promises).then(() => heartbeatStop());
   }
 
   function clearHighlights() {
@@ -169,7 +249,8 @@
     $('btnSpin').classList.toggle('spinning', state.busy);
     $('btnAuto').classList.toggle('on', state.auto);
     $('btnTurbo').classList.toggle('on', state.turbo);
-    $('btnSound').classList.toggle('off', !state.sound);
+    $('btnSfx').classList.toggle('off', !state.sound);
+    $('btnMusic').classList.toggle('off', !state.music);
   }
   const msg = html => { $('msg').innerHTML = html; };
   const icon = id => `<img src="${IMG(id)}" alt="${S[id].name}">`;
@@ -197,10 +278,10 @@
     const ov = $('ovBig');
     $('bigTitle').textContent = x >= 100 ? 'HORDE WIN!' : x >= 50 ? 'MEGA WIN' : 'BIG WIN';
     ov.classList.remove('hidden');
-    sfx.level();
+    sfx.fanfare(1); sfx.groan(Math.max(10, x)); duck(true);
     await countUp($('bigAmt'), 0, amount, state.turbo ? 900 : 2600);
     await sleep(1100);
-    ov.classList.add('hidden');
+    ov.classList.add('hidden'); duck(false);
   }
 
   function toast(text, color) {
@@ -255,7 +336,7 @@
         { transform: `translate(${dx}px, ${dy}px) scale(.22) rotate(20deg)`, opacity: 0.6 }],
         { duration: T(620) + i * T(45), easing: 'cubic-bezier(.45,0,.75,.6)' });
       a.onfinish = () => {
-        f.remove(); meter.shown++; drawMeter(); sfx.gulp();
+        f.remove(); meter.shown++; drawMeter(); sfx.thunk();
         const m = $('meter'); m.classList.remove('gulp'); void m.offsetWidth; m.classList.add('gulp');
         res();
       };
@@ -267,7 +348,9 @@
   // Plays all cascade steps of a spin result. Returns total cash shown.
   async function playCascades(res, mult, runFrom, label) {
     const b = bet();
-    let shown = 0, idx = 0;
+    let shown = 0, idx = 0, bigDone = false;
+    // big-win celebration plays while the winning symbols are still on screen (before they explode)
+    const maybeBig = async total => { if (!bigDone && total / b >= C.bigWinX) { bigDone = true; await bigWin(total, total / b); } };
     if (state.inFeature) {
       const z = []; res.grid.forEach((col, r) => col.forEach((s, k) => { if (S[s].kind === 'zombie') z.push([r, k]); }));
       await flyZombies(z);
@@ -277,12 +360,13 @@
       // 1) highlight + count
       const hitCells = []; st.wins.forEach(w => hitCells.push(...w.cells));
       highlight(hitCells);
-      sfx.win(idx - 1);
       const amt = st.x * b * mult;
       msg(st.wins.map(w => `${w.count}× ${icon(w.sym)} <b>${fmt(w.x * b * mult)}</b>`).join(' &nbsp;·&nbsp; ') + (mult > 1 ? ` &nbsp;(×${mult})` : '') + (idx > 1 ? ` &nbsp;· cascade ${idx}` : ''));
-      banner(idx > 1 ? `${label} ×${idx}` : label, shown + amt);
+      banner(idx > 1 ? `${label} · CASCADE ${idx}` : label, shown + amt);
+      sfx.groan(amt / b);
       await countUp($('win'), runFrom + shown, runFrom + shown + amt, T(Math.min(1000, 280 + st.x * 30)));
       shown += amt;
+      await maybeBig(shown);
       await sleep(T(380));
       // 2) explode
       sfx.boom();
@@ -325,6 +409,7 @@
       banner(label, shown + amt);
       await countUp($('win'), runFrom + shown, runFrom + shown + amt, T(500));
       shown += amt;
+      await maybeBig(shown);
       await sleep(T(600));
     }
     return shown;
@@ -335,10 +420,11 @@
     const b = bet(), cap = C.maxWinX * b;
     $('introSpins').textContent = FS.award;
     $('ovIntro').classList.remove('hidden');
-    sfx.groan();
+    sfx.intro();
     await waitClick('introGo', state.auto ? 2500 : 0);
     $('ovIntro').classList.add('hidden');
     state.inFeature = true;
+    startMusic('music_free');
     document.body.classList.add('free');
     $('fsBar').classList.remove('hidden');
     layout(); buildReels();
@@ -358,7 +444,6 @@
       if (baseWin + total + shown >= cap) { shown = cap - baseWin - total; st.left = 0; res.done = true; }
       if (shown > 0) {
         total += shown; state.balance += shown; updateHUD();
-        if (shown / b >= 25) await bigWin(shown, shown / b);
         await sleep(T(250));
       } else {
         msg(res.zombies ? `+${res.zombies} zombies joined the horde` : 'No win');
@@ -367,7 +452,7 @@
       $('winBanner').classList.add('hidden');
       if (res.levelUp) {
         meter.level = st.level; meter.shown = st.meter; drawMeter();
-        sfx.roar(); shake();
+        sfx.unleash(); shake();
         $('unleashTxt').textContent = `×${st.mult} · +${FS.meterAward} SPINS`;
         $('unleash').classList.remove('hidden');
         const mEl = $('fsMult'); mEl.textContent = '×' + st.mult; mEl.classList.remove('pop'); void mEl.offsetWidth; mEl.classList.add('pop');
@@ -384,17 +469,20 @@
     $('outroSub').textContent = `${st.played} free spins · top multiplier ×${st.mult}` + (st.boss ? ` · boss ${st.boss.type === 'mult' ? '×' + st.boss.value : 'prize ' + st.boss.value + '×'}` : '');
     $('outroWin').textContent = fmt(0);
     $('ovOutro').classList.remove('hidden');
-    sfx.level();
-    await countUp($('outroWin'), 0, total, Math.min(2500, 500 + total / b * 15));
-    await waitClick('outroGo', state.auto ? 2500 : 0);
+    sfx.fanfare(0.8);
+    // listen for COLLECT straight away so an early tap is never lost
+    const collected = waitClick('outroGo', state.auto ? 4500 : 0);
+    await Promise.race([countUp($('outroWin'), 0, total, Math.min(2500, 500 + total / b * 15)), collected]);
+    $('outroWin').textContent = fmt(total);
+    await collected;
     $('ovOutro').classList.add('hidden');
     document.body.classList.remove('free');
     $('fsBar').classList.add('hidden');
     state.inFeature = false;
+    startMusic('music_base');
     layout(); buildReels();
     $('win').textContent = fmt(baseWin + total);
     msg(`Feature won <b>${fmt(total)}</b> · round win <b>${fmt(baseWin + total)}</b>`);
-    if ((baseWin + total) / b >= 25) await bigWin(baseWin + total, (baseWin + total) / b);
     return total;
   }
   function res0Boss() { const f = state.forcedBoss; return f || undefined; }
@@ -416,7 +504,7 @@
     $('bossDropTxt').textContent = boss.type === 'mult' ? `×${boss.value} FEATURE WIN` : `${boss.value}× BET`;
     $('bossDropAmt').textContent = boss.type === 'mult' ? `${fmt(total)} → ${fmt(total + add)}` : `+${fmt(add)}`;
     drop.classList.remove('hidden');
-    sfx.level();
+    sfx.fanfare(0.7);
     await sleep(T(400));
     if (add > 0) { await countUp($('win'), baseWin + total, baseWin + total + add, T(1000)); state.balance += add; updateHUD(); }
     await sleep(T(1500));
@@ -445,7 +533,6 @@
     amount = Math.min(amount, C.maxWinX * b);
     if (amount > 0) {
       state.balance += amount;
-      if (amount / b >= 25 && !res.trigger) await bigWin(amount, amount / b);
       if (!res.trigger) msg(`Round win <b>${fmt(amount)}</b>` + (res.steps.length > 1 ? ` · ${res.steps.length} cascades` : ''));
     } else msg(res.brains === 3 ? `So close! 3 ${icon('BRAIN')}…` : 'No win – the horde keeps coming');
     updateHUD();
@@ -480,7 +567,8 @@
   $('btnSpin').addEventListener('click', () => { if (state.auto) { state.auto = false; updateHUD(); } else spin(); });
   $('btnAuto').addEventListener('click', () => { state.auto = !state.auto; updateHUD(); if (state.auto && !state.busy) spin(); });
   $('btnTurbo').addEventListener('click', () => { state.turbo = !state.turbo; updateHUD(); });
-  $('btnSound').addEventListener('click', () => { state.sound = !state.sound; updateHUD(); });
+  $('btnSfx').addEventListener('click', () => { state.sound = !state.sound; if (!state.sound) heartbeatStop(); savePref(); updateHUD(); });
+  $('btnMusic').addEventListener('click', () => { state.music = !state.music; savePref(); updateHUD(); unlockAudio(); if (state.music) startMusic(A.musicKey); else stopMusic(); });
   $('betDown').addEventListener('click', () => { if (!state.busy && state.betIdx > 0) { state.betIdx--; updateHUD(); } });
   $('betUp').addEventListener('click', () => { if (!state.busy && state.betIdx < C.bets.length - 1) { state.betIdx++; updateHUD(); } });
   $('btnInfo').addEventListener('click', () => { buildPaytable(); $('ovInfo').classList.remove('hidden'); });

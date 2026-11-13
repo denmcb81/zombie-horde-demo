@@ -30,7 +30,7 @@ header{position:absolute;top:8px;left:10px;right:10px;display:flex;align-items:c
 .logo{margin:0 0 16px;font-family:Impact,"Arial Black",sans-serif;font-size:clamp(30px,8vw,52px);line-height:.9;text-align:center;letter-spacing:2px;transform:rotate(-2deg)}
 .logo .l1{color:var(--acid);text-shadow:0 0 18px rgba(156,255,58,.6),3px 3px 0 #1d3b0a}
 .logo .l2{color:#ff3b47;text-shadow:0 0 18px rgba(255,40,60,.6),3px 3px 0 #3b0a0d;display:inline-block;animation:drip 3s ease-in-out infinite}
-.logo small{display:block;font-size:.38em;letter-spacing:10px;color:#ffe9a8;margin-top:3px}
+.logo small{display:none;font-size:.38em;letter-spacing:10px;color:#ffe9a8;margin-top:3px}
 @keyframes drip{0%,100%{transform:translateY(0)}50%{transform:translateY(2px) skewX(-3deg)}}
 
 /* ---------- free spins bar ---------- */
@@ -164,3 +164,6 @@ code{background:rgba(255,255,255,.1);padding:0 4px;border-radius:4px}
 }
 .reel>.cell{transform:var(--t)}
 .reel>.cell.fall{transition:transform var(--d,320ms) cubic-bezier(.55,0,.75,1.25),opacity .25s,filter .25s}
+body.free .logo small{display:block;animation:slam .5s cubic-bezier(.2,1.6,.4,1)}
+.icon-btn.fx{font-family:Impact,"Arial Black",sans-serif;font-size:12px;letter-spacing:.5px}
+#ovBig.overlay.clear{background:radial-gradient(circle,rgba(0,0,0,.25),rgba(0,0,0,.55))}
