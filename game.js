@@ -6,13 +6,19 @@
   const qs = new URLSearchParams(location.search);
   const seed = qs.has('seed') ? (parseInt(qs.get('seed'), 10) >>> 0) : (Date.now() >>> 0);
   const rng = E.makeRng(seed);
-  $('seedTxt').textContent = 'Seed ' + seed + '.';
+  if (qs.has('rtp')) E.setVariant(qs.get('rtp'));          // operator RTP variant: ?rtp=96|94|92
+  $('seedTxt').textContent = 'Seed ' + seed + '. RTP ' + C.variants[C.rtpVariant].label + '.';
+  // Horde Games network jackpot (shared, game-agnostic module). Own RNG stream so the slot maths
+  // sequence is untouched; in production the jackpot draw moves to the jackpot server.
+  const JPM = window.HordeJackpot;
+  const jp = JPM ? JPM.create({ gameId: 'zombie-horde' }) : null;
+  const jrng = E.makeRng((seed ^ 0x4a5c3b1d) >>> 0);
 
   const IMG = id => `assets/sym/${id}.webp`;
   Object.keys(S).forEach(id => { const i = new Image(); i.src = IMG(id); });
 
   const state = { balance: C.startBalance, betIdx: C.defaultBetIndex, busy: false, auto: false, turbo: false,
-                  sound: true, grid: E.drawGrid(E.makeRng(seed ^ 0x5eed), 'base'), forced: [], forcedBoss: null, inFeature: false };
+                  sound: true, grid: E.drawGrid(E.makeRng(seed ^ 0x5eed), 'base'), forced: [], forcedBoss: null, forcedJp: null, inFeature: false };
   const bet = () => C.bets[state.betIdx];
   const fmt = n => n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -675,12 +681,20 @@
     $('ovOutro').classList.remove('hidden');
     sfx.fanfare(0.8);
     shower(total / b >= 50 ? 60 : total / b >= 10 ? 40 : 22);
-    // listen for COLLECT straight away so an early tap is never lost
-    const collected = waitClick('outroGo', state.auto ? 4500 : 0);
-    await Promise.race([countUp($('outroWin'), 0, total, Math.min(2500, 500 + total / b * 15)), collected]);
+    // optional Pick a Zombie gamble on the feature win (never offered automatically in autoplay)
+    const room = Math.round((cap - baseWin) * 100) / 100;
+    const canGamble = total > 0 && total < room - 0.005;
+    $('outroGamble').classList.toggle('hidden', !canGamble); $('outroNote').classList.toggle('hidden', !canGamble);
+    // listen for COLLECT / GAMBLE straight away so an early tap is never lost
+    const choice = waitChoice(canGamble ? ['outroGo', 'outroGamble'] : ['outroGo'], state.auto ? 4500 : 0);
+    await Promise.race([countUp($('outroWin'), 0, total, Math.min(2500, 500 + total / b * 15)), choice]);
     $('outroWin').textContent = fmt(total);
-    await collected;
+    const picked = await choice;
     $('ovOutro').classList.add('hidden');
+    if (picked === 'outroGamble') {
+      const nt = await gambleScene(total, room);
+      state.balance = Math.round((state.balance + nt - total) * 100) / 100; total = nt; updateHUD();
+    }
     $('shower').innerHTML = '';
     stopWalkers();
     document.body.classList.remove('free');
@@ -753,6 +767,226 @@
     return total + add;
   }
 
+  function waitChoice(ids, autoMs) {
+    return new Promise(res => {
+      let done = false; const hs = [];
+      const fin = id => { if (done) return; done = true; hs.forEach(([b, f]) => b.removeEventListener('click', f)); res(id); };
+      ids.forEach(id => { const b = $(id), f = () => fin(id); b.addEventListener('click', f); hs.push([b, f]); });
+      if (autoMs) setTimeout(() => fin(ids[0]), autoMs);
+    });
+  }
+
+  // ---------- Pick a Zombie gamble ----------
+  // Outcome comes from engine.gamblePick (seeded RNG, weighted 20/40/40); the coffin touched only
+  // decides where that outcome is shown. Cap: result never exceeds the room left under the max win.
+  const MULT_TXT = m => (m === 0.5 ? '×½' : '×' + m), MULT_CLS = m => (m === 2 ? 'm2' : m === 1 ? 'm1' : 'mh');
+  const MULT_SYM = m => (m === 2 ? 'HULK' : m === 1 ? 'SHAMBLER' : 'RUNNER');
+  async function gambleScene(amount, room) {
+    const ov = $('ovGamble'), cofs = [...document.querySelectorAll('#coffins .coffin')];
+    let picks = C.gamble.maxPicks;
+    $('gAmt').textContent = fmt(amount);
+    ov.classList.remove('hidden');
+    duck(true);
+    while (true) {
+      $('gPicks').textContent = picks;
+      cofs.forEach(c => { c.className = 'coffin'; c.disabled = false; c.querySelector('.g-rev').className = 'g-rev'; c.querySelector('.g-rev').innerHTML = ''; });
+      $('gMsg').textContent = picks === C.gamble.maxPicks ? 'Choose a coffin…' : 'Pick again – choose a coffin…';
+      $('gCollect').classList.remove('hidden'); $('gContinue').classList.add('hidden');
+      const choice = await new Promise(res => {
+        const hs = [];
+        const fin = v => { hs.forEach(([b, f]) => b.removeEventListener('click', f)); res(v); };
+        cofs.forEach((c, i) => { const f = () => fin(i); c.addEventListener('click', f); hs.push([c, f]); });
+        const fc = () => fin(-1); $('gCollect').addEventListener('click', fc); hs.push([$('gCollect'), fc]);
+      });
+      if (choice < 0) break;
+      cofs.forEach(c => { c.disabled = true; });
+      $('gCollect').classList.add('hidden');
+      const mine = cofs[choice]; mine.classList.add('mine', 'shake');
+      $('gMsg').textContent = 'Something stirs…';
+      sfx.thunk(); heartbeat(T(900));
+      const g = E.gamblePick(rng, choice);
+      const next = E.gambleApply(amount, g.mult, room);
+      await sleep(T(700));
+      heartbeatStop();
+      cofs.forEach((c, i) => { const r = c.querySelector('.g-rev'), m = g.reveal[i]; r.className = 'g-rev ' + MULT_CLS(m); r.innerHTML = `<img src="${IMG(MULT_SYM(m))}" alt="">${MULT_TXT(m)}`; });
+      mine.classList.remove('shake'); mine.classList.add('open');
+      const rb = mine.getBoundingClientRect();
+      if (g.mult === 2) { sfx.fanfare(0.6); sfx.groan(20); burstAt(rb.left + rb.width / 2, rb.top + rb.height / 2, '#ffd23f', 24); shower(16); }
+      else if (g.mult === 1) { sfx.groan(2); }
+      else { sfx.groan(1); snd('groan_small', { vol: 0.9, rate: 0.7 }); }
+      await sleep(T(450));
+      cofs.forEach((c, i) => { if (i !== choice) c.classList.add('open', 'other'); });
+      const el = $('gAmt'); el.classList.remove('up', 'down'); void el.offsetWidth;
+      if (next > amount) { el.classList.add('up'); await countUp(el, amount, next, T(700)); }
+      else { if (next < amount) el.classList.add('down'); el.textContent = fmt(next); }
+      $('gMsg').textContent = g.mult === 2 ? 'DOUBLED!' : g.mult === 1 ? 'Phew – win kept' : 'Bitten! Win halved';
+      amount = next; picks--;
+      $('gPicks').textContent = picks;
+      if (picks > 0 && amount > 0 && amount < room - 0.005) {
+        $('gContinue').classList.remove('hidden'); $('gCollect').classList.remove('hidden');
+        const v = await waitChoice(['gCollect', 'gContinue'], 0);
+        if (v === 'gCollect') break;
+      } else {
+        $('gMsg').textContent += amount >= room - 0.005 ? ' · max win reached' : ' · no picks left';
+        await sleep(T(1500));
+        break;
+      }
+    }
+    ov.classList.add('hidden'); duck(false);
+    $('shower').innerHTML = '';
+    return amount;
+  }
+
+  // ---------- network jackpot: ticker ----------
+  const tick = { shown: {}, target: {}, raf: 0 };
+  function drawTicker() {
+    if (!jp) return;
+    jp.getPools().forEach(p => { tick.target[p.id] = p.amount; if (tick.shown[p.id] == null || p.amount < tick.shown[p.id]) tick.shown[p.id] = p.amount; });
+    if (tick.raf) return;
+    const step = () => {
+      let moving = false;
+      Object.keys(tick.target).forEach(id => {
+        const d = tick.target[id] - tick.shown[id];
+        if (Math.abs(d) > 0.004) { tick.shown[id] += d * 0.12 + Math.sign(d) * 0.003; if (Math.abs(tick.target[id] - tick.shown[id]) < 0.004 || Math.sign(tick.target[id] - tick.shown[id]) !== Math.sign(d)) tick.shown[id] = tick.target[id]; moving = true; }
+        const e = $('jp_' + id); if (e) e.textContent = fmt(tick.shown[id]);
+      });
+      tick.raf = moving ? requestAnimationFrame(step) : 0;
+    };
+    tick.raf = requestAnimationFrame(step);
+  }
+  if (jp) {
+    jp.getPools().forEach(p => { tick.shown[p.id] = p.amount; const e = $('jp_' + p.id); if (e) e.textContent = fmt(p.amount); });
+    jp.on('update', drawTicker);
+    jp.on('award', e => {
+      drawTicker();
+      const cellEl2 = document.querySelector('.jp-cell.t-' + e.tier);
+      if (cellEl2) { cellEl2.classList.remove('won'); void cellEl2.offsetWidth; cellEl2.classList.add('won'); }
+      if (e.by !== 'you') {
+        const n = $('jpNews'); n.textContent = `${e.name} ${fmt(e.amount)} just won on ${e.gameId}!`; n.classList.add('show');
+        setTimeout(() => n.classList.remove('show'), 4500);
+      }
+    });
+  }
+  // debug hook can force a tier: rigged draws (trigger, tier), then the real stream
+  function jpRng() {
+    if (state.forcedJp == null || !jp) return jrng;
+    const ti = jp.tiers.findIndex(t => t.id === state.forcedJp || t.name === state.forcedJp); state.forcedJp = null;
+    if (ti < 0) return jrng;
+    const tot = jp.tiers.reduce((a, t) => a + t.oddsPerUnit, 0);
+    const cum = jp.tiers.slice(0, ti).reduce((a, t) => a + t.oddsPerUnit, 0);
+    const q = [0, (cum + jp.tiers[ti].oddsPerUnit / 2) / tot];
+    return () => (q.length ? q.shift() : jrng());
+  }
+
+  // ---------- network jackpot: jump-scare + Lair pick game ----------
+  const SCARE_KEY = 'zhScareSeen';
+  async function jumpScare() {
+    const sc = $('jpScare');
+    let seen = false; try { seen = localStorage.getItem(SCARE_KEY) === '1'; } catch (e) { /* private mode */ }
+    let skipped = false, wake = null;
+    const nap = ms => new Promise(r => { if (skipped) return r(); const t = setTimeout(r, ms); wake = () => { clearTimeout(t); r(); }; });
+    const onSkip = () => { skipped = true; if (wake) wake(); };
+    sc.classList.remove('hidden', 'go', 'calm', 'dark', 'show'); void sc.offsetWidth;
+    heartbeatStop(); stopMusic();
+    sc.classList.add(REDUCED ? 'calm' : 'go');
+    if (seen) { sc.classList.add('show'); sc.addEventListener('click', onSkip); }
+    // flicker + glitch buzz
+    tone(70, 0.5, 'sawtooth', 0.06, -30); tone(1800, 0.08, 'square', 0.03);
+    await nap(T(500));
+    if (!skipped) { heartbeat(900); tone(55, 0.9, 'sawtooth', 0.05, 40); }
+    await nap(REDUCED ? 600 : 900);
+    // the lunge hits the glass
+    if (!skipped) {
+      sfx.roar(); snd('cascade_boom', { vol: 1, rate: 0.55 }); snd('groan_big', { vol: 1, rate: 0.7, delay: 0.05 });
+      if (!REDUCED) sc.animate([{ transform: 'translate(0,0)' }, { transform: 'translate(-14px,9px)' }, { transform: 'translate(12px,-10px)' }, { transform: 'translate(-8px,6px)' }, { transform: 'translate(0,0)' }], { duration: 450, iterations: 2 });
+    }
+    await nap(REDUCED ? 500 : 650);
+    heartbeatStop();
+    if (!skipped && !seen) {      // first ever view: let it land, then TAP TO CONTINUE
+      sc.classList.add('show');
+      await waitChoice(['scareSkip'], state.auto ? 2500 : 0);
+    } else if (!skipped) {
+      await waitChoice(['scareSkip'], state.auto ? 1200 : 1600);
+    }
+    try { localStorage.setItem(SCARE_KEY, '1'); } catch (e) { /* private mode */ }
+    sc.removeEventListener('click', onSkip);
+    sc.classList.add('dark');               // screen goes dark…
+    await sleep(600);
+  }
+  async function jackpotScene(w) {
+    state.inJackpot = true;
+    await jumpScare();
+    const scr = $('jpScreen'), tiers = jp.tiers, grid = $('jpGrid');
+    // tier board + 12 graves
+    const pools = jp.getPools();
+    $('jpTiers').innerHTML = tiers.slice().reverse().map(t => {
+      const amt = t.id === w.tier ? w.amount : (pools.find(p => p.id === t.id) || {}).amount || t.seed;
+      return `<div class="jp-tier t-${t.id}" data-t="${t.id}"><label><img class="ti" src="${IMG(({ mini: 'SHAMBLER', minor: 'RUNNER', major: 'HULK', grand: 'BOSS' })[t.id] || 'BRAIN')}" alt="">${t.name}</label><b>${fmt(amt)}</b><div class="pips"><i></i><i></i><i></i></div></div>`;
+    }).join('');
+    grid.innerHTML = '';
+    for (let i = 0; i < w.pick.size; i++) {
+      const g = document.createElement('button'); g.className = 'grave'; g.setAttribute('aria-label', 'Grave ' + (i + 1));
+      g.innerHTML = `<img src="assets/tomb.webp" alt=""><div class="tok"></div>`;
+      grid.appendChild(g);
+    }
+    $('jpWin').classList.add('hidden');
+    scr.classList.remove('hidden');
+    $('jpScare').classList.add('hidden');
+    $('jpScare').classList.remove('go', 'calm', 'dark', 'show');
+    startMusic('music_free');
+    const counts = {}; tiers.forEach(t => { counts[t.id] = 0; });
+    const TIER_SYM = { mini: 'SHAMBLER', minor: 'RUNNER', major: 'HULK', grand: 'BOSS' };
+    const tokHtml = t => `<img src="${IMG(TIER_SYM[t.id] || 'BRAIN')}" alt=""><span>${t.name}</span>`;
+    const setTok = (g, t) => { const tok = g.querySelector('.tok'); tok.innerHTML = tokHtml(t); g.style.setProperty('--tc', `var(--c-${t.id})`); g.dataset.t = t.id; };
+    const graves = [...grid.children];
+    for (let k = 0; k < w.pick.order.length; k++) {
+      // wait for the player to dig a grave (autoplay digs for them)
+      const g = await new Promise(res => {
+        const open = graves.filter(x => !x.disabled), hs = [];
+        const fin = x => { hs.forEach(([b, f]) => b.removeEventListener('click', f)); clearTimeout(at); res(x); };
+        open.forEach(x => { const f = () => fin(x); x.addEventListener('click', f); hs.push([x, f]); });
+        const at = state.auto ? setTimeout(() => fin(open[Math.floor(Math.random() * open.length)]), T(700)) : 0;
+      });
+      g.disabled = true;
+      const t = tiers[w.pick.order[k]];
+      setTok(g, t); g.classList.add('dug');
+      counts[t.id]++;
+      sfx.brain(); sfx.thunk();
+      const rb = g.getBoundingClientRect(); burstAt(rb.left + rb.width / 2, rb.top + rb.height / 2, '#c8ff7a', 10);
+      const tierEl = $('jpTiers').querySelector(`[data-t="${t.id}"]`);
+      tierEl.querySelectorAll('.pips i').forEach((p, i) => p.classList.toggle('on', i < counts[t.id]));
+      if (counts[t.id] === 2) { tierEl.classList.add('hot'); heartbeat(T(700)); }
+      if (counts[t.id] === 3) {
+        tierEl.classList.remove('hot'); tierEl.classList.add('win');
+        graves.filter(x => x.dataset.t === t.id).forEach(x => x.classList.add('match'));
+      }
+      await sleep(T(260));
+    }
+    heartbeatStop();
+    // reveal what the other graves held
+    await sleep(T(500));
+    const restGr = graves.filter(x => !x.disabled);
+    restGr.forEach((g, i) => { g.disabled = true; setTok(g, tiers[w.pick.rest[i]]); g.classList.add('dug', 'rest'); });
+    await sleep(T(900));
+    // celebration
+    const winT = tiers[w.tierIndex];
+    $('jwTier').textContent = winT.name; $('jwTier').style.setProperty('--tc', `var(--c-${winT.id})`);
+    $('jwAmt').textContent = fmt(0);
+    $('jpWin').classList.remove('hidden');
+    sfx.fanfare(1); sfx.groan(100); shower(w.tierIndex >= 2 ? 80 : 50);
+    const done = waitClick('jpCollect', state.auto ? 5000 : 0);
+    await Promise.race([countUp($('jwAmt'), 0, w.amount, Math.min(4000, 1200 + w.tierIndex * 900)), done]);
+    $('jwAmt').textContent = fmt(w.amount);
+    await done;
+    state.balance = Math.round((state.balance + w.amount) * 100) / 100;
+    scr.classList.add('hidden'); $('jpWin').classList.add('hidden'); $('shower').innerHTML = '';
+    startMusic('music_base');
+    state.inJackpot = false;
+    $('win').textContent = fmt(w.amount);
+    msg(`<b>${winT.name} JACKPOT</b> · ${fmt(w.amount)} added to your demo credits`);
+    updateHUD(); drawTicker();
+  }
+
   // ---------- main spin ----------
   async function spin() {
     if (state.busy) return;
@@ -769,6 +1003,9 @@
     updateHUD();
     const b = bet();
     const res = E.baseSpin(rng, state.forced.shift());
+    // network jackpot: every paid spin contributes, then one stake-weighted draw (decided now, shown after the round)
+    let jpWin = null;
+    if (jp) { jp.contribute(b); jpWin = jp.checkWin(b, jpRng()); drawTicker(); }
     await spinReels(res.grid, FS.trigger);
     let amount = await playCascades(res, 1, 0, 'WIN');
     amount = Math.min(amount, C.maxWinX * b);
@@ -781,6 +1018,7 @@
       await triggerCinematic(res.brainCells);
       await runFeature(amount);
     }
+    if (jpWin) await jackpotScene(jpWin);
     state.balance = Math.round(state.balance * 100) / 100;
     state.busy = false;
     updateHUD();
@@ -801,6 +1039,11 @@
     $('maxWin').textContent = C.maxWinX.toLocaleString('en-GB');
     $('meterRule').textContent = FS.meterSizes.join(' / ') + ' zombies';
     $('bossMin').textContent = C.bossDrop.minForMult;
+    $('rtpRule').textContent = C.variants[C.rtpVariant].label;
+    if (jp) {
+      const pools = jp.getPools();
+      $('jpRule').innerHTML = jp.tiers.map(t => `<b>${t.name}</b> (starts at ${fmt(t.seed)}, now ${fmt((pools.find(p => p.id === t.id) || {}).amount || t.seed)}; chance per spin at this bet ≈ 1 in ${Math.round(1 / (t.oddsPerUnit * b)).toLocaleString('en-GB')})`).join(', ') + '.';
+    }
   }
 
   // ---------- events ----------
@@ -820,12 +1063,13 @@
       e.preventDefault();
       if (!$('ovIntro').classList.contains('hidden')) $('introGo').click();
       else if (!$('ovOutro').classList.contains('hidden')) $('outroGo').click();
+      else if (!$('jpScreen').classList.contains('hidden') || !$('ovGamble').classList.contains('hidden') || !$('jpScare').classList.contains('hidden')) { /* use taps in these screens */ }
       else if ($('ovInfo').classList.contains('hidden')) $('btnSpin').click();
     }
   });
   let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { layout(); if (!state.busy) buildReels(); }, 150); });
 
-  layout(); buildReels(); updateHUD();
+  layout(); buildReels(); updateHUD(); drawTicker();
   // re-fit once the logo art and web font have loaded
   window.addEventListener('load', () => { layout(); if (!state.busy) buildReels(); });
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (!state.busy) { layout(); buildReels(); } });

@@ -1,4 +1,4 @@
-/*  Zombie Horde Free Spins - game maths engine v4 (commercial-feel retune: ~94.5% RTP, ~27% hit rate) (Horde Games demo)
+/*  Zombie Horde Free Spins - game maths engine v5 (HIGH volatility: ~94.5% RTP, ~19% hit rate, bonus-driven) (Horde Games demo)
  *  DEMO ONLY - virtual credits, no real money.
  *  Shared by index.html (browser) and simulate.js (node). ALL tuning lives in CONFIG.
  *
@@ -23,42 +23,58 @@
     minCluster: 8,
     maxCascades: 40,
     startBalance: 1000,
-    bets: [0.1, 0.2, 0.5, 1, 2, 5],               // max bet 5 = 200 spins of the 1,000 demo credits
+    bets: [0.1, 0.2, 0.5, 1, 2, 5],               // stake ladder; min 0.10 / max 5.00 (UK online slot stake limits)
     defaultBetIndex: 3,
-    maxWinX: 5000,
+    maxWinX: 10000,
     bigWinX: 25,                                 // presentation only: big-win screen from 25x bet
     symbols: {
       // pays by count band [8-9, 10-11, 12+] in x total bet
-      AXE:      { name: 'Axe',      kind: 'low',    pay: [0.2, 4, 15] },
-      RADIO:    { name: 'Radio',    kind: 'low',    pay: [0.3, 5, 20] },
-      MEDKIT:   { name: 'Medkit',   kind: 'low',    pay: [0.4, 7, 30] },
-      TNT:      { name: 'Dynamite', kind: 'low',    pay: [0.5, 10, 50] },
-      SHAMBLER: { name: 'Shambler', kind: 'zombie', pay: [12, 32, 100] },
-      RUNNER:   { name: 'Runner',   kind: 'zombie', pay: [16, 60, 200] },
-      HULK:     { name: 'Hulk',     kind: 'zombie', pay: [30, 120, 500] },
-      BOSS:     { name: 'Boss',     kind: 'zombie', pay: [80, 350, 2000] },
+      AXE:      { name: 'Axe',      kind: 'low',    pay: [1, 1.5, 5] },
+      RADIO:    { name: 'Radio',    kind: 'low',    pay: [1, 2, 5] },
+      MEDKIT:   { name: 'Medkit',   kind: 'low',    pay: [1, 2, 6] },
+      TNT:      { name: 'Dynamite', kind: 'low',    pay: [1, 2.5, 8] },
+      SHAMBLER: { name: 'Shambler', kind: 'zombie', pay: [8, 50, 200] },
+      RUNNER:   { name: 'Runner',   kind: 'zombie', pay: [16, 100, 400] },
+      HULK:     { name: 'Hulk',     kind: 'zombie', pay: [30, 250, 1200] },
+      BOSS:     { name: 'Boss',     kind: 'zombie', pay: [80, 700, 4000] },
       WILD:     { name: 'Wild',     kind: 'wild' },
       BRAIN:    { name: 'Brain',    kind: 'scatter' },
     },
-    scatterPay: { 4: 4, 5: 8, 6: 100 },          // x bet by brains on final grid (6 = 6+)
-    weightsBase: { AXE: 182, RADIO: 180, MEDKIT: 176, TNT: 171, SHAMBLER: 93, RUNNER: 65, HULK: 45, BOSS: 25, WILD: 6, BRAIN: 24 },
-    weightsFree: { AXE: 165, RADIO: 145, MEDKIT: 125, TNT: 105, SHAMBLER: 120, RUNNER: 85, HULK: 58, BOSS: 30, WILD: 20, BRAIN: 20 },
+    scatterPay: { 4: 2, 5: 8, 6: 100 },          // x bet by brains on final grid (6 = 6+)
+    weightsBase: { AXE: 160, RADIO: 160, MEDKIT: 160, TNT: 160, SHAMBLER: 104, RUNNER: 80, HULK: 52, BOSS: 26, WILD: 3, BRAIN: 23 },
+    weightsFree: { AXE: 165, RADIO: 145, MEDKIT: 125, TNT: 105, SHAMBLER: 120, RUNNER: 85, HULK: 58, BOSS: 30, WILD: 24, BRAIN: 20 },
     freeSpins: {
       trigger: 4, award: 10, retriggerBrains: 3, retriggerAward: 5,
-      meterSizes: [46, 92, 115],                  // zombies needed for x2, x5, x10
+      meterSizes: [46, 92, 105],                  // zombies needed for x2, x5, x10
       meterAward: 5, multipliers: [1, 2, 5, 10],
+    },
+    // RTP variants (operator-selectable). Totals INCLUDE the 2.0% Horde network jackpot contribution
+    // (horde-jackpot/jackpot.js), i.e. game maths 94/92/90% + jackpot 2%. Only the free-spins WILD weight
+    // differs, so hit rate, bonus frequency and volatility class are the same. Default demo = 96%.
+    jackpotRtp: 0.02,
+    rtpVariant: '96',
+    variants: {
+      '96': { label: '96.0% (game 94.0% + jackpot 2.0%)', weightsFree: { WILD: 26.2 } },
+      '94': { label: '94.0% (game 92.0% + jackpot 2.0%)', weightsFree: { WILD: 25.25 } },
+      '92': { label: '92.0% (game 90.0% + jackpot 2.0%)', weightsFree: { WILD: 24.4 } },
+    },
+    // Post-bonus "Pick a Zombie" gamble: RTP-neutral (EV per pick = 0.2*2 + 0.4*1 + 0.4*0.5 = 1.00).
+    // Outcome is drawn here from the seeded RNG, never by the UI. Odds are disclosed in the rules.
+    gamble: {
+      maxPicks: 3,
+      outcomes: [ { mult: 2, w: 20 }, { mult: 1, w: 40 }, { mult: 0.5, w: 40 } ],
     },
     bossDrop: {
       minForMult: 10,                             // feature win (x bet) below this always gets a prize
       table: [                                    // weighted outcomes
         { type: 'mult',  value: 2,   w: 18 },
-        { type: 'mult',  value: 3,   w: 8 },
-        { type: 'mult',  value: 5,   w: 3 },
-        { type: 'mult',  value: 10,  w: 0.6 },
-        { type: 'prize', value: 2,   w: 45 },
-        { type: 'prize', value: 5,   w: 22 },
-        { type: 'prize', value: 10,  w: 8 },
-        { type: 'prize', value: 50,  w: 1 },
+        { type: 'mult',  value: 3,   w: 12 },
+        { type: 'mult',  value: 5,   w: 8 },
+        { type: 'mult',  value: 10,  w: 4 },
+        { type: 'prize', value: 5,   w: 40 },
+        { type: 'prize', value: 10,  w: 15 },
+        { type: 'prize', value: 25,  w: 5 },
+        { type: 'prize', value: 100, w: 1 },
       ],
     },
   };
@@ -209,6 +225,32 @@
     return { type: pick.type, value: pick.value, addX, before };
   }
 
-  const api = { CONFIG, makeRng, drawGrid, clusterWins, playSpin, baseSpin, newFeature, freeSpin, meterSize };
+  // RTP variant switch (rebuilds the free-spins reel weights)
+  const FREE_BASE = Object.assign({}, CONFIG.weightsFree);
+  function setVariant(v) {
+    const vv = CONFIG.variants[v]; if (!vv) return false;
+    CONFIG.weightsFree = Object.assign({}, FREE_BASE, vv.weightsFree || {});
+    CONFIG.rtpVariant = v; return true;
+  }
+  setVariant(CONFIG.rtpVariant);
+
+  // One gamble pick. pick = door index chosen by the player (0-2). The multiplier is drawn from the
+  // weighted outcome table with the seeded RNG; the other two doors show the remaining outcomes.
+  function gamblePick(rng, pick) {
+    const o = CONFIG.gamble.outcomes, tot = o.reduce((a, x) => a + x.w, 0);
+    let r = rng() * tot, idx = o.length - 1;
+    for (let i = 0; i < o.length; i++) { if ((r -= o[i].w) < 0) { idx = i; break; } }
+    const rest = o.filter((_, i) => i !== idx).map(x => x.mult);
+    if (rng() < 0.5) rest.reverse();
+    const reveal = []; let j = 0;
+    for (let d = 0; d < 3; d++) reveal.push(d === pick ? o[idx].mult : rest[j++]);
+    return { mult: o[idx].mult, reveal };
+  }
+
+  // Gamble result in credits: amount x mult, rounded down to the cent, never above the room left
+  // under the round's max-win cap (so the cap applies after the gamble).
+  function gambleApply(amount, mult, room) { return Math.max(0, Math.min(room, Math.floor(amount * mult * 100 + 1e-6) / 100)); }
+
+  const api = { CONFIG, makeRng, drawGrid, clusterWins, playSpin, baseSpin, newFeature, freeSpin, meterSize, setVariant, gamblePick, gambleApply };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.HordeEngine = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -384,3 +384,131 @@ body:has(#ovBig:not(.hidden)) .win-banner{opacity:0}
 #shower{z-index:65}
 #shower{z-index:49}
 #ovOutro{background:rgba(0,0,0,.55)}
+
+/* ===== Horde network jackpot ticker ===== */
+.jp-ticker{position:relative;z-index:3;display:grid;grid-template-columns:repeat(4,1fr);gap:5px;width:min(100%,640px);margin:0 0 6px}
+.jp-cell{position:relative;text-align:center;padding:3px 4px 4px;border-radius:10px;background:linear-gradient(#1b0d24,#07030a);border:2px solid var(--tc,#c39132);box-shadow:0 0 12px -2px var(--tc,#c39132),inset 0 0 12px rgba(0,0,0,.8);overflow:hidden}
+.jp-cell::after{content:"";position:absolute;top:0;bottom:0;width:40%;left:-60%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent);animation:jpSheen 4.5s ease-in-out infinite}
+.jp-cell label{display:block;font-family:var(--disp);font-size:11px;letter-spacing:2px;color:var(--tc)}
+.jp-cell b{display:block;font-family:var(--disp);font-weight:400;font-size:clamp(13px,3.6vw,19px);color:#fff6d0;text-shadow:0 0 8px var(--tc);font-variant-numeric:tabular-nums;white-space:nowrap}
+.t-grand{--tc:#ff3b47}.t-major{--tc:#c56bff}.t-minor{--tc:#3ec5ff}.t-mini{--tc:#9cff3a}
+.t-grand::after{animation-delay:0s}.t-major::after{animation-delay:.6s}.t-minor::after{animation-delay:1.2s}.t-mini::after{animation-delay:1.8s}
+.jp-cell.bump b{animation:jpBump .5s}
+.jp-cell.won{animation:jpWon .6s 4}
+.jp-news{position:absolute;left:50%;top:100%;transform:translate(-50%,2px);font-size:11px;white-space:nowrap;color:#ffe9a6;background:rgba(0,0,0,.75);border:1px solid #c39132;border-radius:20px;padding:1px 10px;opacity:0;transition:opacity .4s;pointer-events:none;z-index:9}
+.jp-news.show{opacity:1}
+@keyframes jpSheen{0%,60%{left:-60%}100%{left:130%}}
+@keyframes jpBump{40%{transform:scale(1.15);color:#fff}}
+@keyframes jpWon{50%{box-shadow:0 0 30px 6px var(--tc);transform:scale(1.06)}}
+body.free .jp-ticker{margin-bottom:4px}
+
+/* ===== Pick a Zombie gamble ===== */
+.ov-card.gamble{max-width:470px}
+.g-sub{font-size:13px!important}.g2{color:#ffd23f}.g1{color:#9cff3a}.gh{color:#ff6b6b}
+.g-amt{font-family:var(--disp);font-size:clamp(34px,10vw,52px);color:#ffd23f;text-shadow:0 3px 0 #5a2a00,0 0 18px rgba(255,180,0,.7);margin:4px 0 2px;font-variant-numeric:tabular-nums}
+.g-amt.up{animation:gUp .7s}.g-amt.down{animation:gDown .7s}
+@keyframes gUp{30%{transform:scale(1.25);color:#fff8c8}}@keyframes gDown{30%{transform:scale(.85);color:#ff6b6b}}
+.coffins{display:flex;justify-content:center;gap:clamp(8px,4vw,22px);margin:8px 0}
+.coffin{position:relative;width:clamp(80px,24vw,112px);aspect-ratio:194/400;max-height:34vh;background:none;border:0;padding:0;cursor:pointer;filter:drop-shadow(0 6px 10px #000);transition:transform .15s}
+.coffin img{width:100%;height:100%;object-fit:contain;display:block;transition:transform .5s cubic-bezier(.3,1.6,.5,1),opacity .4s}
+.coffin:not(:disabled):hover{transform:translateY(-6px) rotate(-2deg)}
+.coffin:not(:disabled){animation:cofIdle 2.2s ease-in-out infinite}
+.coffin:nth-child(2){animation-delay:.4s!important}.coffin:nth-child(3){animation-delay:.8s!important}
+@keyframes cofIdle{50%{transform:translateY(-4px)}}
+.coffin.shake{animation:cofShake .08s linear 6!important}
+@keyframes cofShake{25%{transform:translateX(-4px) rotate(-3deg)}75%{transform:translateX(4px) rotate(3deg)}}
+.coffin.open img{transform:perspective(500px) rotateY(-75deg) translateX(-10%);opacity:.25}
+.coffin .g-rev{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--disp);font-size:clamp(28px,8vw,40px);opacity:0;transform:scale(.3);transition:all .45s cubic-bezier(.2,1.6,.4,1);text-shadow:0 3px 0 #000,0 0 14px currentColor}
+.coffin .g-rev img{width:72%;height:auto;transform:none!important;opacity:1!important;filter:drop-shadow(0 0 10px currentColor)}
+.coffin.open .g-rev{opacity:1;transform:scale(1)}
+.coffin.other.open .g-rev{opacity:.55;transform:scale(.8)}
+.coffin.mine{outline:3px solid #ffd23f;outline-offset:4px;border-radius:14px}
+.coffin:disabled{cursor:default}
+.g-rev.m2{color:#ffd23f}.g-rev.m1{color:#9cff3a}.g-rev.mh{color:#ff6b6b}
+.g-msg{font-family:var(--disp);font-size:20px;min-height:26px;color:#e9ffd2}
+.g-btns{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+.go-btn.alt{background:linear-gradient(#ffe27a,#c77d00);border-color:#fff3c4;color:#2a1400;box-shadow:0 4px 0 #5a3000,0 0 22px rgba(255,190,0,.6)}
+.g-note{font-size:12px!important;opacity:.8;margin-top:6px}
+
+/* ===== Jump-scare ===== */
+#jpScare{position:fixed;inset:0;z-index:90;overflow:hidden;pointer-events:none}
+#jpScare.show{pointer-events:auto}
+#jpScare .sc-dark{position:absolute;inset:0;background:radial-gradient(circle at 50% 45%,rgba(60,0,0,.35),rgba(0,0,0,.92) 70%);opacity:0}
+#jpScare .sc-flicker{position:absolute;inset:0;background:#fff;opacity:0;mix-blend-mode:overlay}
+#jpScare .sc-glass{position:absolute;inset:0;width:100%;height:100%;opacity:0;filter:drop-shadow(0 0 3px #000)}
+#scareZ{position:absolute;left:50%;top:52%;width:min(70vw,60vh);transform:translate(-50%,-50%) scale(.12);opacity:0;filter:brightness(.2) blur(2px);will-change:transform}
+.sc-title{position:absolute;left:50%;bottom:9%;transform:translateX(-50%) scale(.5);font-family:var(--disp);font-size:clamp(54px,16vw,120px);color:#ffd23f;-webkit-text-stroke:3px #4a0000;text-shadow:0 6px 0 #300,0 0 30px #ff2030;opacity:0;white-space:nowrap;z-index:3}
+.sc-black{position:absolute;inset:0;background:#000;opacity:0;z-index:4;transition:opacity .5s}
+.sc-skip{position:absolute;right:14px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:6;font-family:var(--disp);font-size:14px;letter-spacing:1px;color:#fff;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.5);border-radius:20px;padding:6px 14px;cursor:pointer;opacity:0;transition:opacity .4s}
+#jpScare.show .sc-skip{opacity:.9}
+#jpScare.go .sc-dark{animation:scDark .5s forwards}
+#jpScare.go .sc-flicker{animation:scFlicker .9s steps(1) forwards}
+#jpScare.go #scareZ{animation:scLunge 1.25s cubic-bezier(.55,0,.75,.2) .55s forwards}
+#jpScare.go .sc-glass{animation:scGlass .2s steps(1) 1.62s forwards}
+#jpScare.go .sc-title{animation:scTitle .5s cubic-bezier(.2,1.6,.4,1) 1.85s forwards}
+#jpScare.dark .sc-black{opacity:1}
+#jpScare.calm #scareZ{animation:scCalm .9s ease-out forwards}
+#jpScare.calm .sc-dark{opacity:1}
+#jpScare.calm .sc-title{animation:scTitle .4s ease-out .4s forwards}
+@keyframes scDark{to{opacity:1}}
+@keyframes scFlicker{0%{opacity:.9}8%{opacity:0}14%{opacity:.7}20%{opacity:0}30%{opacity:.4}34%{opacity:0}60%{opacity:.6;background:#ff2030}64%{opacity:0}}
+@keyframes scLunge{0%{transform:translate(-50%,-50%) scale(.12);opacity:0;filter:brightness(.2) blur(2px)}
+  25%{transform:translate(-50%,-48%) scale(.3);opacity:1;filter:brightness(.7) blur(0)}
+  45%{transform:translate(-50%,-50%) scale(.42) rotate(-2deg);filter:brightness(1)}
+  85%{transform:translate(-50%,-44%) scale(2.6) rotate(2deg);filter:brightness(1.15) saturate(1.2)}
+  100%{transform:translate(-50%,-40%) scale(3.1) rotate(0);opacity:1;filter:brightness(1.1) saturate(1.2)}}
+@keyframes scCalm{from{transform:translate(-50%,-50%) scale(.6);opacity:0;filter:none}to{transform:translate(-50%,-52%) scale(1);opacity:1;filter:none}}
+@keyframes scGlass{to{opacity:1}}
+@keyframes scTitle{to{opacity:1;transform:translateX(-50%) scale(1)}}
+
+/* ===== Jackpot lair play screen ===== */
+#jpScreen{position:fixed;inset:0;z-index:85;overflow:hidden;display:flex;align-items:center;justify-content:center;animation:fade .6s}
+#jpScreen .lair{position:absolute;inset:-4%;background:url(assets/lair-tall.webp) center/cover no-repeat;animation:lairDrift 18s ease-in-out infinite alternate;filter:brightness(.8)}
+@media (min-aspect-ratio:1/1){#jpScreen .lair{background-image:url(assets/lair-wide.webp)}}
+#jpScreen::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(0,0,0,.15),rgba(0,0,0,.75) 85%);pointer-events:none}
+#jpScreen .lair-fog{position:absolute;left:-50%;right:-50%;bottom:-5%;height:40%;background:radial-gradient(ellipse at 30% 60%,rgba(120,255,120,.18),transparent 55%),radial-gradient(ellipse at 70% 70%,rgba(160,255,140,.14),transparent 55%);animation:fogDrift 14s linear infinite alternate;z-index:1}
+@keyframes lairDrift{to{transform:scale(1.06) translateY(-1%)}}
+@keyframes fogDrift{to{transform:translateX(18%)}}
+.jp-wrap{position:relative;z-index:2;width:min(96vw,620px);text-align:center;padding:10px}
+.jp-brand{font-size:11px;letter-spacing:3px;color:#ffe9a6;opacity:.85}
+.jp-h{font-family:var(--disp);font-weight:400;font-size:clamp(34px,10vw,58px);line-height:1;color:#c8ff7a;text-shadow:0 4px 0 #0c2a00,0 0 24px rgba(156,255,58,.8);margin:2px 0}
+.jp-p{font-size:14px;margin:0 0 6px}
+.jp-tiers{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:6px 0 10px}
+.jp-tier{border:2px solid var(--tc);border-radius:10px;background:rgba(8,3,12,.82);padding:3px 2px;box-shadow:0 0 12px -3px var(--tc)}
+.jp-tier label{display:block;font-family:var(--disp);color:var(--tc);font-size:13px;letter-spacing:2px}
+.jp-tier b{display:block;font-family:var(--disp);font-weight:400;font-size:clamp(12px,3.4vw,17px);color:#fff6d0}
+.jp-tier .pips{display:flex;justify-content:center;gap:4px;margin-top:3px}
+.jp-tier .pips i{width:10px;height:10px;border-radius:50%;border:1.5px solid var(--tc);background:transparent;transition:background .3s,box-shadow .3s}
+.jp-tier .pips i.on{background:var(--tc);box-shadow:0 0 8px var(--tc)}
+.jp-tier.hot{animation:jpWon .5s infinite}
+.jp-tier.win{animation:jpWon .4s infinite;background:rgba(60,40,0,.9)}
+.jp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(4px,1.6vw,10px);width:min(100%,calc(46vh * 4 / 3 * 1.1))!important;margin:0 auto}
+.grave{position:relative;aspect-ratio:1/1;background:none;border:0;padding:0;cursor:pointer}
+.grave>img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 5px 6px #000);transition:transform .35s,opacity .35s}
+.grave:not(:disabled):hover>img{transform:translateY(-4px) scale(1.04)}
+.grave:not(:disabled)>img{animation:graveIdle 3s ease-in-out infinite}
+.grave:nth-child(3n+1)>img{animation-delay:.5s}.grave:nth-child(3n+2)>img{animation-delay:1.1s}
+@keyframes graveIdle{50%{transform:translateY(-3px) rotate(1deg)}}
+.grave .tok{position:absolute;inset:6%;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;transform:translateY(30%) scale(.4);transition:all .45s cubic-bezier(.2,1.6,.4,1)}
+.grave .tok img{width:74%;filter:drop-shadow(0 0 4px var(--tc)) drop-shadow(0 0 12px var(--tc))}
+.grave .tok span{font-family:var(--disp);font-size:clamp(11px,3.2vw,16px);color:var(--tc);text-shadow:0 2px 0 #000,0 0 8px #000;letter-spacing:1px;margin-top:-6%}
+.grave.dug>img{opacity:.18;transform:translateY(12%) scale(.9)}
+.grave.dug .tok{opacity:1;transform:none}
+.grave.rest .tok{opacity:.45;transform:scale(.8);filter:grayscale(.5)}
+.grave.match .tok{animation:tokPulse .5s infinite}
+@keyframes tokPulse{50%{transform:scale(1.14)}}
+.jp-demo{margin-top:8px;font-size:11px;opacity:.8}
+.jp-win{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(circle,rgba(40,20,0,.55),rgba(0,0,0,.85) 70%);animation:fade .4s}
+.jp-win>*:not(.rays){position:relative;z-index:1}
+.jw-t1{font-family:var(--disp);font-size:clamp(22px,6vw,34px);color:#fff;letter-spacing:3px}
+.jw-tier{font-family:var(--disp);font-size:clamp(64px,20vw,140px);line-height:.95;color:var(--tc,#ffd23f);-webkit-text-stroke:3px #1a0000;text-shadow:0 6px 0 #000,0 0 40px var(--tc,#ffd23f);animation:zoomIn .6s cubic-bezier(.2,1.6,.4,1)}
+.jw-tier::after{content:" JACKPOT";display:block;font-size:.34em;letter-spacing:6px;color:#fff;-webkit-text-stroke:1px #000}
+.jw-amt{font-family:var(--disp);font-size:clamp(46px,13vw,84px);background:linear-gradient(#fff8c8,#ffd23f 45%,#e08a00);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:2px #5a2a00;filter:drop-shadow(0 4px 0 #3a1a00) drop-shadow(0 0 18px rgba(255,180,0,.8));font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion: reduce){
+  .jp-cell::after,.coffin:not(:disabled),.grave:not(:disabled)>img,#jpScreen .lair,#jpScreen .lair-fog,.grave.match .tok,.jp-tier.hot,.jp-tier.win{animation:none!important}
+  #jpScare.go #scareZ{animation:scCalm .9s ease-out forwards}
+  #jpScare.go .sc-flicker,#jpScare.go .sc-glass{animation:none}
+}
+:root{--c-mini:#9cff3a;--c-minor:#3ec5ff;--c-major:#c56bff;--c-grand:#ff3b47}
+.jp-grid{width:min(100%,58vh)!important}
+.jp-tier label .ti{height:20px;width:20px;object-fit:contain;vertical-align:-5px;margin-right:2px}
