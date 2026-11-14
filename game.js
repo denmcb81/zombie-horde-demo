@@ -8,7 +8,7 @@
   const rng = E.makeRng(seed);
   $('seedTxt').textContent = 'Seed ' + seed + '.';
 
-  const IMG = id => `assets/sym/${id}.svg`;
+  const IMG = id => `assets/sym/${id}.webp`;
   Object.keys(S).forEach(id => { const i = new Image(); i.src = IMG(id); });
 
   const state = { balance: C.startBalance, betIdx: C.defaultBetIndex, busy: false, auto: false, turbo: false,
@@ -139,12 +139,20 @@
   const pitch = () => cell + gapPx;
   function layout() {
     gapPx = window.innerWidth < 420 ? 4 : 5;
-    const w = Math.min(window.innerWidth, 760) - 20 - 20 - gapPx * 7;
+    const vw = Math.min(window.innerWidth, document.documentElement.clientWidth || window.innerWidth);
+    const w = Math.min(vw, 760) - 20 - 46 - gapPx * 7;
     const reserved = window.innerHeight < 700 ? 340 : 390;
     const h = window.innerHeight - reserved - (state.inFeature ? 70 : 0) - gapPx * 5;
     cell = Math.max(44, Math.floor(Math.min(104, w / 6, h / 4)));
     document.documentElement.style.setProperty('--cell', cell + 'px');
     document.documentElement.style.setProperty('--gap', gapPx + 'px');
+    // shrink the reels if the page still overflows the viewport (tall logo / short screens)
+    for (let i = 0; i < 3; i++) {
+      const over = $('app').scrollHeight - window.innerHeight;
+      if (over <= 2 || cell <= 44) break;
+      cell = Math.max(44, cell - Math.ceil(over / 4) - 1);
+      document.documentElement.style.setProperty('--cell', cell + 'px');
+    }
   }
 
   // ---------- grid rendering ----------
@@ -154,6 +162,7 @@
     const d = document.createElement('div');
     d.className = 'cell s-' + sym + ' k-' + S[sym].kind;
     d.dataset.sym = sym;
+    d.style.setProperty('--i', (Math.random() * 9) | 0);
     d.innerHTML = `<img src="${IMG(sym)}" alt="${S[sym].name}">`;
     return d;
   }
@@ -205,6 +214,7 @@
       promises.push(new Promise(res => setTimeout(() => {
         R.reel.classList.remove('anticip');
         renderReel(r, grid[r]);
+        landFx(R.cells);
         sfx.stop();
         grid[r].forEach((s, k) => { if (s === 'BRAIN') { cellEl(r, k).classList.add('brainland'); sfx.brain(); } });
         res();
@@ -225,9 +235,33 @@
 
   // particles at a cell
   const SPARK = { low: '#cfe3f5', zombie: '#9cff3a', wild: '#ffd21a', scatter: '#ff8fd0' };
+  const REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function landFx(cells) {
+    if (REDUCED) return;
+    cells.forEach(c => { c.classList.remove('land'); void c.offsetWidth; c.classList.add('land'); });
+    setTimeout(() => cells.forEach(c => c.classList.remove('land')), 420);
+  }
   function burst(el, color) {
     const fx = $('fx'), fr = fx.getBoundingClientRect(), r = el.getBoundingClientRect();
     const cx = r.left - fr.left + r.width / 2, cy = r.top - fr.top + r.height / 2;
+    if (REDUCED) return;
+    // shockwave ring
+    const sh = document.createElement('div'); sh.className = 'shock';
+    sh.style.left = cx + 'px'; sh.style.top = cy + 'px'; sh.style.borderColor = color;
+    fx.appendChild(sh);
+    sh.animate([{ width: '10px', height: '10px', opacity: 1 }, { width: cell * 1.5 + 'px', height: cell * 1.5 + 'px', opacity: 0 }],
+               { duration: 380, easing: 'cubic-bezier(.2,.8,.4,1)' }).onfinish = () => sh.remove();
+    // gravity chunks
+    for (let i = 0; i < 6; i++) {
+      const c = document.createElement('div'); c.className = 'chunk';
+      c.style.left = cx + 'px'; c.style.top = cy + 'px'; c.style.background = color;
+      fx.appendChild(c);
+      const vx = (Math.random() - 0.5) * cell * 1.6, up = cell * (0.4 + Math.random() * 0.5), rot = (Math.random() - 0.5) * 720;
+      c.animate([{ transform: 'translate(-50%,-50%) rotate(0)', opacity: 1 },
+                 { transform: `translate(calc(-50% + ${vx * 0.6}px), calc(-50% - ${up}px)) rotate(${rot / 2}deg)`, opacity: 1, offset: 0.4 },
+                 { transform: `translate(calc(-50% + ${vx}px), calc(-50% + ${cell * 0.8}px)) rotate(${rot}deg)`, opacity: 0 }],
+                { duration: 650 + Math.random() * 200, easing: 'cubic-bezier(.3,.6,.6,1)' }).onfinish = () => c.remove();
+    }
     for (let i = 0; i < 9; i++) {
       const s = document.createElement('div'); s.className = 'spark';
       s.style.left = cx + 'px'; s.style.top = cy + 'px'; s.style.background = color; s.style.boxShadow = `0 0 8px ${color}`;
@@ -278,10 +312,176 @@
     const ov = $('ovBig');
     $('bigTitle').textContent = x >= 100 ? 'HORDE WIN!' : x >= 50 ? 'MEGA WIN' : 'BIG WIN';
     ov.classList.remove('hidden');
+    shake(false); shower(x >= 100 ? 70 : x >= 50 ? 50 : 34);
     sfx.fanfare(1); sfx.groan(Math.max(10, x)); duck(true);
     await countUp($('bigAmt'), 0, amount, state.turbo ? 900 : 2600);
     await sleep(1100);
     ov.classList.add('hidden'); duck(false);
+  }
+
+  // coin + brain shower for big wins
+  function shower(n) {
+    if (REDUCED) return;
+    const box = $('shower'); box.innerHTML = '';
+    const H = window.innerHeight + 120;
+    for (let i = 0; i < n; i++) {
+      let d;
+      if (i % 4 === 0) { d = document.createElement('img'); d.src = IMG('BRAIN'); d.alt = ''; }
+      else { d = document.createElement('div'); d.className = 'coin'; }
+      d.classList.add('drop');
+      d.style.left = (Math.random() * 100) + 'vw';
+      box.appendChild(d);
+      const dur = 1400 + Math.random() * 1400, delay = Math.random() * 1600, sway = (Math.random() - 0.5) * 120;
+      d.animate([{ transform: 'translate(0,0) rotate(0) rotateY(0)' },
+                 { transform: `translate(${sway}px, ${H}px) rotate(${(Math.random() - 0.5) * 900}deg) rotateY(720deg)` }],
+                { duration: dur, delay, easing: 'cubic-bezier(.4,.1,.8,.9)', fill: 'both' }).onfinish = () => d.remove();
+    }
+  }
+  // floating embers in free spins
+  (function embers() {
+    const box = $('embers'); if (!box || REDUCED) return;
+    for (let i = 0; i < 26; i++) {
+      const e = document.createElement('i');
+      e.style.left = (Math.random() * 100) + '%';
+      e.style.setProperty('--dx', ((Math.random() - 0.5) * 160) + 'px');
+      e.style.animationDuration = (6 + Math.random() * 8) + 's';
+      e.style.animationDelay = (-Math.random() * 14) + 's';
+      const s = 2 + Math.random() * 4; e.style.width = e.style.height = s + 'px';
+      box.appendChild(e);
+    }
+  })();
+
+  // ---------- bonus cinematics (presentation only – no maths here) ----------
+  const HORDE = [0, 1, 2, 3, 4, 5].map(i => `assets/horde/z${i}.webp`);
+  HORDE.forEach(src => { const i = new Image(); i.src = src; });
+  function rollInt(el, to, ms) {
+    return new Promise(res => {
+      if (ms <= 0 || REDUCED) { el.textContent = to; return res(); }
+      const t0 = performance.now();
+      (function step(t) {
+        const p = Math.min(1, (t - t0) / ms);
+        el.textContent = Math.round(to * (1 - Math.pow(1 - p, 2)));
+        if (p < 1) requestAnimationFrame(step); else { el.textContent = to; el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); res(); }
+      })(t0);
+    });
+  }
+  // zombie silhouettes rushing across the screen
+  function hordeRush(n, ms, z = 54) {
+    if (REDUCED) return sleep(Math.min(ms, 300));
+    const box = document.createElement('div'); box.className = 'rush'; box.style.zIndex = z;
+    document.body.appendChild(box);
+    for (let i = 0; i < n; i++) {
+      const w = document.createElement('div'); w.className = 'runner';
+      const im = document.createElement('img'); im.src = HORDE[i % HORDE.length]; im.alt = '';
+      im.style.animationDuration = (0.28 + Math.random() * 0.2) + 's';
+      w.appendChild(im);
+      const sc = 0.7 + Math.random() * 0.9;
+      w.style.bottom = (2 + Math.random() * 22) + 'vh';
+      w.style.height = (14 * sc) + 'vh';
+      w.style.zIndex = Math.round(sc * 10);
+      w.style.filter = `brightness(${0.2 + sc * 0.25})`;
+      box.appendChild(w);
+      const d = ms * (0.6 + Math.random() * 0.4), delay = Math.random() * ms * 0.35;
+      w.animate([{ transform: 'translateX(-30vw)' }, { transform: 'translateX(130vw)' }],
+                { duration: d, delay, easing: 'linear', fill: 'both' });
+    }
+    return sleep(ms + 60).then(() => box.remove());
+  }
+  // brains pulse, fly to the centre, screen darkens, horde rushes past, FREE SPINS title rolls up
+  async function triggerCinematic(brainCells) {
+    highlight(brainCells);
+    brainCells.forEach(([r, k]) => cellEl(r, k).classList.add('bpulse'));
+    sfx.brain();
+    await sleep(T(900));
+    const cine = $('cine'); cine.classList.remove('hidden', 'show', 'out'); void cine.offsetWidth; cine.classList.add('go');
+    const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+    const flights = brainCells.map(([r, k], i) => {
+      const src = cellEl(r, k); if (!src) return Promise.resolve();
+      const b = src.getBoundingClientRect();
+      const f = document.createElement('img'); f.className = 'flyer brainfly'; f.src = IMG('BRAIN');
+      Object.assign(f.style, { left: b.left + 'px', top: b.top + 'px', width: b.width + 'px', height: b.height + 'px' });
+      document.body.appendChild(f);
+      const dx = cx - (b.left + b.width / 2), dy = cy - (b.top + b.height / 2);
+      return new Promise(res => {
+        f.animate([{ transform: 'translate(0,0) scale(1) rotate(0)' },
+                   { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - 60}px) scale(1.6) rotate(${i % 2 ? 25 : -25}deg)`, offset: 0.5 },
+                   { transform: `translate(${dx}px, ${dy}px) scale(2.4) rotate(0)`, opacity: 1, offset: 0.85 },
+                   { transform: `translate(${dx}px, ${dy}px) scale(4)`, opacity: 0 }],
+                  { duration: T(1000) + i * T(90), easing: 'cubic-bezier(.5,0,.4,1)', fill: 'both' }).onfinish = () => { f.remove(); res(); };
+      });
+    });
+    sfx.intro();
+    await Promise.all(flights);
+    clearHighlights();
+    shake(false); burstAt(cx, cy, '#ff8fd0', 22);
+    const rush = hordeRush(9, T(2000), 61);
+    cine.classList.add('show');
+    await rollInt($('cineCount'), FS.award, T(900));
+    await rush;
+    cine.classList.add('out');
+    await sleep(T(350));
+    cine.classList.add('hidden'); cine.classList.remove('go', 'show', 'out');
+  }
+  // particles at screen coordinates
+  function burstAt(x, y, color, n = 16) {
+    if (REDUCED) return;
+    for (let i = 0; i < n; i++) {
+      const s2 = document.createElement('div'); s2.className = 'spark fixed';
+      s2.style.left = x + 'px'; s2.style.top = y + 'px'; s2.style.background = color; s2.style.boxShadow = `0 0 10px ${color}`;
+      document.body.appendChild(s2);
+      const a = Math.random() * Math.PI * 2, d = 60 + Math.random() * 160;
+      s2.animate([{ transform: 'translate(-50%,-50%) scale(1.4)', opacity: 1 },
+                  { transform: `translate(calc(-50% + ${Math.cos(a) * d}px), calc(-50% + ${Math.sin(a) * d}px)) scale(.2)`, opacity: 0 }],
+                 { duration: 600 + Math.random() * 400, easing: 'cubic-bezier(.2,.8,.4,1)' }).onfinish = () => s2.remove();
+    }
+  }
+  // zombies shambling along the bottom during free spins
+  function startWalkers() {
+    const box = $('walkers'); box.innerHTML = '';
+    if (REDUCED) return;
+    for (let i = 0; i < 6; i++) {
+      const w = document.createElement('div'); w.className = 'walker' + (i % 3 === 2 ? ' left' : '');
+      const im = document.createElement('img'); im.src = HORDE[(i * 2 + (i > 2 ? 1 : 0)) % HORDE.length]; im.alt = '';
+      im.style.animationDuration = (0.9 + Math.random() * 0.6) + 's';
+      w.appendChild(im);
+      const sc = 0.55 + Math.random() * 0.6;
+      w.style.height = (11 * sc) + 'vh';
+      w.style.bottom = (-1 + Math.random() * 3) + 'vh';
+      w.style.animationDuration = (18 + Math.random() * 16) + 's';
+      w.style.animationDelay = (-Math.random() * 30) + 's';
+      box.appendChild(w);
+    }
+    box.classList.add('on');
+  }
+  function stopWalkers() { const box = $('walkers'); box.classList.remove('on'); setTimeout(() => { if (!box.classList.contains('on')) box.innerHTML = ''; }, 900); }
+  // horde meter bursts on level-up, multiplier badge slams in
+  function meterBurst(mult) {
+    const m = $('meter'); m.classList.remove('burst'); void m.offsetWidth; m.classList.add('burst');
+    const r = m.getBoundingClientRect();
+    if (!REDUCED) for (let i = 0; i < 10; i++) {
+      const f = document.createElement('img'); f.className = 'flyer'; f.src = IMG(['SHAMBLER', 'RUNNER', 'HULK'][i % 3]);
+      const x = r.left + r.width * (i + 0.5) / 10, y = r.top + r.height / 2, sz = 30;
+      Object.assign(f.style, { left: (x - sz / 2) + 'px', top: (y - sz / 2) + 'px', width: sz + 'px', height: sz + 'px' });
+      document.body.appendChild(f);
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.4, d = 80 + Math.random() * 140;
+      f.animate([{ transform: 'translate(0,0) scale(1)', opacity: 1 },
+                 { transform: `translate(${Math.cos(a) * d}px, ${Math.sin(a) * d + 160}px) scale(.4) rotate(${(Math.random() - 0.5) * 600}deg)`, opacity: 0 }],
+                { duration: 900 + Math.random() * 400, easing: 'cubic-bezier(.2,.6,.6,1)' }).onfinish = () => f.remove();
+    }
+    burstAt(r.left + r.width / 2, r.top + r.height / 2, '#ffd23f', 24);
+    const mEl = $('fsMult'); mEl.textContent = '×' + mult;
+    mEl.classList.remove('pop', 'slam'); void mEl.offsetWidth; mEl.classList.add('slam');
+    const badge = mEl.parentElement; badge.classList.remove('lvl'); void badge.offsetWidth; badge.classList.add('lvl');
+  }
+  // retrigger celebration
+  async function retriggerFx(res) {
+    sfx.brain();
+    highlight(res.brainCells);
+    res.brainCells.forEach(([r, k]) => cellEl(r, k).classList.add('bpulse'));
+    shower(18);
+    const fl = $('fsLeft'); fl.classList.remove('pop'); void fl.offsetWidth; fl.classList.add('pop');
+    await toast(`<span class="rt">RETRIGGER!</span><br>+${FS.retriggerAward} FREE SPINS`);
+    clearHighlights();
   }
 
   function toast(text, color) {
@@ -299,8 +499,9 @@
       if (autoMs) setTimeout(fin, autoMs);
     });
   }
-  function shake() {
+  function shake(flash = true) {
     const a = $('app'); a.classList.remove('shake'); void a.offsetWidth; a.classList.add('shake');
+    if (!flash) return;
     const f = $('flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
   }
 
@@ -393,6 +594,7 @@
       }
       sfx.drop();
       await sleep(T(420));
+      landFx([...gridEl.querySelectorAll('.cell.fall')]);
       gridEl.querySelectorAll('.cell.fall').forEach(c => c.classList.remove('fall'));
       state.grid = st.next.map(c => c.slice());
       if (state.inFeature) {
@@ -418,14 +620,16 @@
   // ---------- free spins ----------
   async function runFeature(baseWin) {
     const b = bet(), cap = C.maxWinX * b;
-    $('introSpins').textContent = FS.award;
+    $('introSpins').textContent = '0';
     $('ovIntro').classList.remove('hidden');
-    sfx.intro();
-    await waitClick('introGo', state.auto ? 2500 : 0);
+    const introClick = waitClick('introGo', state.auto ? 2500 : 0);
+    rollInt($('introSpins'), FS.award, T(700));
+    await introClick;
     $('ovIntro').classList.add('hidden');
     state.inFeature = true;
     startMusic('music_free');
     document.body.classList.add('free');
+    startWalkers();
     $('fsBar').classList.remove('hidden');
     layout(); buildReels();
     const st = E.newFeature();
@@ -453,13 +657,13 @@
       if (res.levelUp) {
         meter.level = st.level; meter.shown = st.meter; drawMeter();
         sfx.unleash(); shake();
+        meterBurst(st.mult);
         $('unleashTxt').textContent = `×${st.mult} · +${FS.meterAward} SPINS`;
         $('unleash').classList.remove('hidden');
-        const mEl = $('fsMult'); mEl.textContent = '×' + st.mult; mEl.classList.remove('pop'); void mEl.offsetWidth; mEl.classList.add('pop');
-        await sleep(T(1700));
+        await hordeRush(7, T(1700), 54);
         $('unleash').classList.add('hidden');
       } else { meter.shown = st.level >= FS.multipliers.length - 1 ? meter.shown : st.meter; drawMeter(); }
-      if (res.retrigger) { sfx.brain(); await toast(`+${FS.retriggerAward} FREE SPINS!`); }
+      if (res.retrigger) await retriggerFx(res);
       $('fsLeft').textContent = st.left;
       // boss drop on the last spin
       if (st.left <= 0 && res.boss) total = await bossScene(res.boss, total, baseWin, cap);
@@ -470,12 +674,15 @@
     $('outroWin').textContent = fmt(0);
     $('ovOutro').classList.remove('hidden');
     sfx.fanfare(0.8);
+    shower(total / b >= 50 ? 60 : total / b >= 10 ? 40 : 22);
     // listen for COLLECT straight away so an early tap is never lost
     const collected = waitClick('outroGo', state.auto ? 4500 : 0);
     await Promise.race([countUp($('outroWin'), 0, total, Math.min(2500, 500 + total / b * 15)), collected]);
     $('outroWin').textContent = fmt(total);
     await collected;
     $('ovOutro').classList.add('hidden');
+    $('shower').innerHTML = '';
+    stopWalkers();
     document.body.classList.remove('free');
     $('fsBar').classList.add('hidden');
     state.inFeature = false;
@@ -485,30 +692,64 @@
     msg(`Feature won <b>${fmt(total)}</b> · round win <b>${fmt(baseWin + total)}</b>`);
     return total;
   }
+  function debris() {
+    const box = $('debris'); box.innerHTML = '';
+    if (REDUCED) return;
+    for (let i = 0; i < 26; i++) {
+      const d = document.createElement('div'); d.className = 'rock';
+      const sz = 8 + Math.random() * 22; d.style.width = sz + 'px'; d.style.height = sz * (0.6 + Math.random() * 0.5) + 'px';
+      d.style.left = (40 + Math.random() * 20) + 'vw';
+      box.appendChild(d);
+      const vx = (Math.random() - 0.5) * 90, up = 30 + Math.random() * 50;
+      d.animate([{ transform: 'translate(0,0) rotate(0)' }, { transform: `translate(${vx * 0.6}vw, -${up}vh) rotate(${Math.random() * 360}deg)`, offset: 0.45 },
+                 { transform: `translate(${vx}vw, 10vh) rotate(${Math.random() * 720}deg)` }],
+                { duration: 1100 + Math.random() * 600, easing: 'cubic-bezier(.2,.7,.6,1)', fill: 'both' }).onfinish = () => d.remove();
+    }
+  }
   function res0Boss() { const f = state.forcedBoss; return f || undefined; }
 
   async function bossScene(boss, total, baseWin, cap) {
     const b = bet();
     const ov = $('ovBoss'), img = $('bossImg'), drop = $('bossDrop');
     drop.classList.add('hidden');
-    $('bossTitle').textContent = 'THE BOSS ARRIVES…';
-    img.classList.remove('roar');
-    ov.classList.remove('hidden');
-    sfx.roar();
-    await sleep(T(900)); shake();
-    img.classList.add('roar');
-    await sleep(T(700));
+    $('bossTitle').textContent = 'THE GROUND SHAKES…';
+    img.classList.remove('roar', 'rise');
+    ov.classList.remove('hidden', 'risen', 'reveal');
+    ov.classList.add('rumble');
+    $('frame').classList.add('smash');
+    await sleep(T(900));
+    // boss bursts out of the ground
+    ov.classList.remove('rumble'); ov.classList.add('risen');
+    img.classList.add('rise');
+    sfx.roar(); shake();
+    debris();
+    await sleep(T(800));
+    $('bossTitle').textContent = 'THE BOSS ARRIVES!';
+    img.classList.add('roar'); shake(false);
+    await sleep(T(800));
     let add = boss.type === 'mult' ? total * (boss.value - 1) : boss.value * b;
     if (baseWin + total + add > cap) add = Math.max(0, cap - baseWin - total);
+    // build-up: the drop flickers through the boss table before landing
+    $('bossTitle').textContent = 'THE BOSS DROPS…';
+    $('bossDropAmt').textContent = '';
+    drop.classList.remove('hidden'); drop.classList.add('rolling');
+    const opts = C.bossDrop.table.map(o => o.type === 'mult' ? `×${o.value} FEATURE WIN` : `${o.value}× BET`);
+    if (!REDUCED) { let wait = 60, i = 0; const end = performance.now() + T(1500);
+      while (performance.now() < end) { $('bossDropTxt').textContent = opts[i++ % opts.length]; sfx.tick(); await sleep(wait); wait = Math.min(220, wait * 1.12); } }
+    drop.classList.remove('rolling');
     $('bossTitle').textContent = boss.type === 'mult' ? 'BOSS MULTIPLIER!' : 'BOSS PRIZE!';
     $('bossDropTxt').textContent = boss.type === 'mult' ? `×${boss.value} FEATURE WIN` : `${boss.value}× BET`;
     $('bossDropAmt').textContent = boss.type === 'mult' ? `${fmt(total)} → ${fmt(total + add)}` : `+${fmt(add)}`;
-    drop.classList.remove('hidden');
+    drop.classList.remove('boss-drop'); void drop.offsetWidth; drop.classList.add('boss-drop');
+    ov.classList.add('reveal');
+    const dr = $('bossDropTxt').getBoundingClientRect(); burstAt(dr.left + dr.width / 2, dr.top + dr.height / 2, '#ffd23f', 26);
+    shower(boss.type === 'mult' || boss.value >= 10 ? 30 : 14);
     sfx.fanfare(0.7);
     await sleep(T(400));
     if (add > 0) { await countUp($('win'), baseWin + total, baseWin + total + add, T(1000)); state.balance += add; updateHUD(); }
     await sleep(T(1500));
-    ov.classList.add('hidden');
+    ov.classList.add('hidden'); ov.classList.remove('risen', 'reveal');
+    $('frame').classList.remove('smash');
     return total + add;
   }
 
@@ -537,8 +778,7 @@
     } else msg(res.brains === 3 ? `So close! 3 ${icon('BRAIN')}…` : 'No win – the horde keeps coming');
     updateHUD();
     if (res.trigger) {
-      highlight(res.brainCells);
-      await sleep(700);
+      await triggerCinematic(res.brainCells);
       await runFeature(amount);
     }
     state.balance = Math.round(state.balance * 100) / 100;
@@ -586,4 +826,7 @@
   let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { layout(); if (!state.busy) buildReels(); }, 150); });
 
   layout(); buildReels(); updateHUD();
+  // re-fit once the logo art and web font have loaded
+  window.addEventListener('load', () => { layout(); if (!state.busy) buildReels(); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (!state.busy) { layout(); buildReels(); } });
 })();
