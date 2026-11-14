@@ -1,4 +1,4 @@
-/*  Zombie Horde Free Spins - game maths engine v2 (Horde Games demo)
+/*  Zombie Horde Free Spins - game maths engine v4 (commercial-feel retune: ~94.5% RTP, ~27% hit rate) (Horde Games demo)
  *  DEMO ONLY - virtual credits, no real money.
  *  Shared by index.html (browser) and simulate.js (node). ALL tuning lives in CONFIG.
  *
@@ -23,41 +23,42 @@
     minCluster: 8,
     maxCascades: 40,
     startBalance: 1000,
-    bets: [0.2, 0.5, 1, 2, 5, 10, 20],
-    defaultBetIndex: 2,
+    bets: [0.1, 0.2, 0.5, 1, 2, 5],               // max bet 5 = 200 spins of the 1,000 demo credits
+    defaultBetIndex: 3,
     maxWinX: 5000,
     bigWinX: 25,                                 // presentation only: big-win screen from 25x bet
     symbols: {
       // pays by count band [8-9, 10-11, 12+] in x total bet
-      AXE:      { name: 'Axe',      kind: 'low',    pay: [0.2, 1.6, 7] },
-      RADIO:    { name: 'Radio',    kind: 'low',    pay: [0.3, 3, 10] },
-      MEDKIT:   { name: 'Medkit',   kind: 'low',    pay: [0.4, 3, 20] },
-      TNT:      { name: 'Dynamite', kind: 'low',    pay: [0.5, 6, 30] },
-      SHAMBLER: { name: 'Shambler', kind: 'zombie', pay: [9, 24, 70] },
-      RUNNER:   { name: 'Runner',   kind: 'zombie', pay: [14, 45, 140] },
-      HULK:     { name: 'Hulk',     kind: 'zombie', pay: [24, 90, 300] },
-      BOSS:     { name: 'Boss',     kind: 'zombie', pay: [70, 250, 1000] },
+      AXE:      { name: 'Axe',      kind: 'low',    pay: [0.2, 4, 15] },
+      RADIO:    { name: 'Radio',    kind: 'low',    pay: [0.3, 5, 20] },
+      MEDKIT:   { name: 'Medkit',   kind: 'low',    pay: [0.4, 7, 30] },
+      TNT:      { name: 'Dynamite', kind: 'low',    pay: [0.5, 10, 50] },
+      SHAMBLER: { name: 'Shambler', kind: 'zombie', pay: [12, 32, 100] },
+      RUNNER:   { name: 'Runner',   kind: 'zombie', pay: [16, 60, 200] },
+      HULK:     { name: 'Hulk',     kind: 'zombie', pay: [30, 120, 500] },
+      BOSS:     { name: 'Boss',     kind: 'zombie', pay: [80, 350, 2000] },
       WILD:     { name: 'Wild',     kind: 'wild' },
       BRAIN:    { name: 'Brain',    kind: 'scatter' },
     },
-    scatterPay: { 4: 3, 5: 5, 6: 100 },          // x bet by brains on final grid (6 = 6+)
-    weightsBase: { AXE: 250, RADIO: 210, MEDKIT: 170, TNT: 140, SHAMBLER: 90, RUNNER: 65, HULK: 45, BOSS: 25, WILD: 8, BRAIN: 24 },
-    weightsFree: { AXE: 150, RADIO: 130, MEDKIT: 110, TNT: 90, SHAMBLER: 140, RUNNER: 105, HULK: 70, BOSS: 38, WILD: 22, BRAIN: 20 },
+    scatterPay: { 4: 4, 5: 8, 6: 100 },          // x bet by brains on final grid (6 = 6+)
+    weightsBase: { AXE: 182, RADIO: 180, MEDKIT: 176, TNT: 171, SHAMBLER: 93, RUNNER: 65, HULK: 45, BOSS: 25, WILD: 6, BRAIN: 24 },
+    weightsFree: { AXE: 165, RADIO: 145, MEDKIT: 125, TNT: 105, SHAMBLER: 120, RUNNER: 85, HULK: 58, BOSS: 30, WILD: 20, BRAIN: 20 },
     freeSpins: {
       trigger: 4, award: 10, retriggerBrains: 3, retriggerAward: 5,
-      meterSizes: [55, 110, 130],                  // zombies needed for x2, x5, x10
+      meterSizes: [46, 92, 115],                  // zombies needed for x2, x5, x10
       meterAward: 5, multipliers: [1, 2, 5, 10],
     },
     bossDrop: {
       minForMult: 10,                             // feature win (x bet) below this always gets a prize
       table: [                                    // weighted outcomes
-        { type: 'mult',  value: 2,   w: 15 },
-        { type: 'mult',  value: 3,   w: 4 },
-        { type: 'mult',  value: 5,   w: 1 },
-        { type: 'prize', value: 5,   w: 50 },
-        { type: 'prize', value: 10,  w: 22 },
-        { type: 'prize', value: 25,  w: 7 },
-        { type: 'prize', value: 100, w: 1 },
+        { type: 'mult',  value: 2,   w: 18 },
+        { type: 'mult',  value: 3,   w: 8 },
+        { type: 'mult',  value: 5,   w: 3 },
+        { type: 'mult',  value: 10,  w: 0.6 },
+        { type: 'prize', value: 2,   w: 45 },
+        { type: 'prize', value: 5,   w: 22 },
+        { type: 'prize', value: 10,  w: 8 },
+        { type: 'prize', value: 50,  w: 1 },
       ],
     },
   };
